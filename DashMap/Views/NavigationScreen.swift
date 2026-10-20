@@ -65,6 +65,7 @@ private struct MapNavView: View {
 
     @ViewBuilder private var banner: some View {
         if let s = session.state {
+            VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 16) {
                     Image(systemName: session.displayManeuver(for: s).symbolName)
@@ -94,16 +95,22 @@ private struct MapNavView: View {
                     Label("Stop: \(stop)", systemImage: "mappin.circle.fill")
                         .font(.subheadline).foregroundStyle(Theme.accent).lineLimit(1)
                 }
-                if let lanes = session.activeLanes {
-                    LaneStrip(guidance: lanes)
-                }
                 if session.gpsLost {
                     Label("GPS signal lost. Estimating position.", systemImage: "location.slash")
                         .font(.footnote).foregroundStyle(.yellow)
                 }
             }
             .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let lanes = session.activeLanes {
+                LaneStrip(guidance: lanes)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(.black.opacity(0.3))
+            }
+            }
             .background(Theme.surface.opacity(0.96), in: RoundedRectangle(cornerRadius: 20))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
             .padding(.horizontal, 12)
             .padding(.top, 8)
         }

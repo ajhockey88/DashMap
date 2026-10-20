@@ -122,7 +122,10 @@ struct HUDView: View {
                     .padding(.top, 100)
                 }
                 if let lanes = session.activeLanes {
-                    LaneStrip(guidance: lanes).padding(.top, 8)
+                    LaneStrip(guidance: lanes)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 12))
+                        .padding(.top, 8)
                 }
                 if let road = session.roadInfo { RoadChip(info: road).padding(.top, 8) }
                 Spacer()

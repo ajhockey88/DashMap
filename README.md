@@ -1,8 +1,15 @@
-# DashMap
+<p align="center"><img src="docs/images/app-icon.png" width="112" alt="DashMap app icon"></p>
 
-A turn-by-turn navigation app for iPhone with a **windshield HUD**. Lay the phone flat on the dashboard and the
-mirrored display reflects off the windshield. Routing and search use Apple Maps (MapKit), so no API keys or
+<h1 align="center">DashMap</h1>
+
+<p align="center"><b>Turn-by-turn navigation for iPhone with a windshield HUD.</b></p>
+
+Lay the phone flat on the dashboard and the mirrored display reflects off the windshield, so the next turn, the
+lanes and your speed sit in your line of sight. Routing and search use Apple Maps (MapKit), so no API keys or
 accounts are needed.
+
+<p align="center"><img src="docs/images/hero-windshield.png" alt="Illustration: a phone lying flat on a dashboard shows the HUD mirrored, and its reflection in the windshield reads the right way round"></p>
+<p align="center"><sub>Illustration of how the mirrored HUD reflects off the windshield. It is a drawing, not a photo.</sub></p>
 
 > **Status:** the app and its unit tests build in CI. It has not yet been tested on a real drive. Do not rely on
 > it as your only navigation, and do not operate it while driving.
@@ -29,6 +36,28 @@ accounts are needed.
 **Other**
 - Dark interface throughout; settings for units, voice, start display, HUD style and mirroring
 - **Simulate drive** on the route preview replays a route as fake GPS, to test indoors
+
+## Screenshots
+
+> These are **design mock-ups** rendered from the app's screen designs, not captures from a running phone. Real
+> screenshots will replace them once the app has been run on a device.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/home.png" width="190" alt="Home"><br><sub>Home: search, recents, Home and Work</sub></td>
+    <td align="center"><img src="docs/images/route-preview.png" width="190" alt="Route preview"><br><sub>Route preview with alternatives</sub></td>
+    <td align="center"><img src="docs/images/map-navigation.png" width="190" alt="Map navigation"><br><sub>Map navigation with lanes painted on the road</sub></td>
+    <td align="center"><img src="docs/images/two-turn-lanes.png" width="190" alt="Two turn lanes"><br><sub>Two usable turn lanes, both highlighted</sub></td>
+    <td align="center"><img src="docs/images/highway-exit.png" width="190" alt="Highway exit"><br><sub>Highway exit with exit number and signs</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/hud-arrows.png" width="190" alt="HUD, arrows and text"><br><sub>HUD: arrows and text (shown unmirrored)</sub></td>
+    <td align="center"><img src="docs/images/hud-map.png" width="190" alt="HUD, moving map"><br><sub>HUD: moving map (shown unmirrored)</sub></td>
+    <td align="center"><img src="docs/images/add-a-stop.png" width="190" alt="Add a stop"><br><sub>Search along the route</sub></td>
+    <td align="center"><img src="docs/images/lock-screen.png" width="190" alt="Lock screen and Dynamic Island"><br><sub>Lock screen and Dynamic Island</sub></td>
+    <td align="center"><img src="docs/images/settings.png" width="190" alt="Settings"><br><sub>Settings</sub></td>
+  </tr>
+</table>
 
 ## Install
 

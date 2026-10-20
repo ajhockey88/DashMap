@@ -43,32 +43,15 @@ public enum OSMLanes {
     ///   - point: a spot on the route shortly before the maneuver, used to pick the road you're on.
     ///   - travelBearing: your direction of travel there, used to pick forward/backward lanes.
     public static func guidance(from data: Data, at point: Coordinate, travelBearing: Double, maneuver: Maneuver) -> LaneGuidance? {
-        guard let response = try? JSONDecoder().decode(Response.self, from: data) else { return nil }
-
-        var best: (offset: Double, value: String)?
-        for element in response.elements where element.type == "way" {
-            guard let tags = element.tags, let geometry = element.geometry, geometry.count >= 2 else { continue }
-            let pts = geometry.map { Coordinate(latitude: $0.lat, longitude: $0.lon) }
-
-            var nearest = (offset: Double.infinity, bearing: 0.0)
-            for i in 0..<(pts.count - 1) {
-                let r = Geo.project(point, onto: pts[i], pts[i + 1])
-                if r.offset < nearest.offset { nearest = (r.offset, Geo.bearing(from: pts[i], to: pts[i + 1])) }
-            }
-            guard nearest.offset <= 20 else { continue }
-
-            let alongWay = abs(Geo.turnAngle(before: travelBearing, after: nearest.bearing)) < 90
-            let oneway = tags["oneway"]
-            let isOneway = oneway == "yes" || oneway == "true" || oneway == "1" || oneway == "-1"
-            if (oneway == "yes" || oneway == "true" || oneway == "1") && !alongWay { continue }
-            if oneway == "-1" && alongWay { continue }
-
-            // Tags are listed left to right in the direction the lanes travel.
-            let value = (isOneway ? tags["turn:lanes"] : nil) ?? tags[alongWay ? "turn:lanes:forward" : "turn:lanes:backward"]
-            if let value, nearest.offset < (best?.offset ?? .infinity) { best = (nearest.offset, value) }
-        }
-        guard let value = best?.value else { return nil }
+        guard let match = OSMWays.nearest(in: data, at: point, travelBearing: travelBearing, accepting: { tags, along, oneway in
+            laneValue(tags, alongWay: along, isOneway: oneway) != nil
+        }), let value = laneValue(match.tags, alongWay: match.alongWay, isOneway: match.isOneway) else { return nil }
         return guidance(fromTag: value, maneuver: maneuver)
+    }
+
+    /// Tags are listed left to right in the direction the lanes travel.
+    static func laneValue(_ tags: [String: String], alongWay: Bool, isOneway: Bool) -> String? {
+        (isOneway ? tags["turn:lanes"] : nil) ?? tags[alongWay ? "turn:lanes:forward" : "turn:lanes:backward"]
     }
 
     static func guidance(fromTag value: String, maneuver: Maneuver) -> LaneGuidance? {
@@ -102,14 +85,6 @@ public enum OSMLanes {
         case .roundaboutLeft, .roundaboutRight, .ferry, .ferryTrain, .arrive: return nil
         }
     }
-
-    private struct Response: Decodable { var elements: [Element] }
-    private struct Element: Decodable {
-        var type: String
-        var tags: [String: String]?
-        var geometry: [Point]?
-    }
-    private struct Point: Decodable { var lat: Double; var lon: Double }
 }
 
 extension Route {

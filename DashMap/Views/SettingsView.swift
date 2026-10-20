@@ -38,7 +38,7 @@ struct SettingsView: View {
                     Text("Lay the phone flat on the dashboard, screen up, with mirroring on. Turn mirroring off to read the HUD directly.")
                 }
                 Section("About") {
-                    Text("Lane guidance uses lane data from OpenStreetMap where it has been mapped. © OpenStreetMap contributors.")
+                    Text("Lane guidance, road names and speed limits use OpenStreetMap data where it has been mapped. © OpenStreetMap contributors.")
                         .font(.footnote)
                 }
             }

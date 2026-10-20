@@ -79,6 +79,11 @@ struct PreviewView: View {
 
             Button("Start") { session.startNavigation() }
                 .buttonStyle(PrimaryButtonStyle())
+
+            Button("Simulate drive") { session.startNavigation(simulated: true) }
+                .font(.subheadline)
+                .foregroundStyle(Theme.secondary)
+                .frame(minHeight: 44)
         }
         .padding(16)
         .padding(.bottom, 8)

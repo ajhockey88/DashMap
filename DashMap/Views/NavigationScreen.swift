@@ -37,9 +37,13 @@ private struct MapNavView: View {
             VStack(spacing: 0) {
                 banner
                 Spacer()
-                HStack(alignment: .bottom) {
+                HStack(alignment: .bottom, spacing: 10) {
                     speedBadge
-                    Spacer()
+                    if let kph = session.roadInfo?.speedLimitKph {
+                        SpeedLimitSign(kph: kph, units: units, size: 56)
+                    }
+                    if let road = session.roadInfo { RoadChip(info: road) }
+                    Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -93,6 +97,7 @@ private struct MapNavView: View {
         let sp = units.speed(session.speed)
         return VStack(spacing: 0) {
             Text("\(sp.value)").font(.system(size: 24, weight: .bold, design: .rounded)).monospacedDigit()
+                .foregroundStyle(session.isSpeeding ? Theme.danger : .white)
             Text(sp.unit).font(.caption2).foregroundStyle(Theme.secondary)
         }
         .frame(width: 68, height: 68)

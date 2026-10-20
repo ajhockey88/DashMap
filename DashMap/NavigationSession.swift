@@ -21,6 +21,9 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var carHeading: Double = 0
     /// Lane markings for the approach to the next maneuver, when known.
     @Published private(set) var lanes: LaneGuidance?
+    /// Name, route number and speed limit of the road you're on, when known.
+    @Published private(set) var roadInfo: RoadInfo?
+    @Published private(set) var isSimulating = false
     @Published var errorMessage: String?
     @Published private(set) var destinationName = ""
     @Published var voiceEnabled = UserDefaults.standard.object(forKey: "voice.enabled") as? Bool ?? true {
@@ -41,6 +44,9 @@ final class NavigationSession: ObservableObject {
     private var laneFetchedStep = -1
     private var laneStep = -1
     private var laneTask: Task<Void, Never>?
+    private var roadFetchedStep = -1
+    private var roadTask: Task<Void, Never>?
+    private var simulatedDistance = 0.0
 
     private var lastFix = Date()
     private var lastSpeed = 0.0
@@ -52,10 +58,11 @@ final class NavigationSession: ObservableObject {
 
     static let fasterRouteCheckInterval = 90.0
     static let maxDeadReckoning = 120.0
+    static let simulatedSpeed = 16.0   // m/s, about 36 mph
 
     init() {
         voice.enabled = voiceEnabled
-        cancellable = location.$location.compactMap { $0 }.sink { [weak self] in self?.handle($0) }
+        cancellable = location.$location.compactMap { $0 }.sink { [weak self] in self?.handle($0, simulated: false) }
         location.start()
     }
 
@@ -63,6 +70,12 @@ final class NavigationSession: ObservableObject {
     var activeLanes: LaneGuidance? {
         guard let lanes, let state, state.distanceToManeuver < 800 else { return nil }
         return lanes
+    }
+
+    /// Over the posted limit by more than a small margin.
+    var isSpeeding: Bool {
+        guard let limit = roadInfo?.speedLimitKph else { return false }
+        return speed * 3.6 > limit + 3
     }
 
     var currentCoordinate: Coordinate? { location.location?.coordinate2D }
@@ -96,8 +109,10 @@ final class NavigationSession: ObservableObject {
 
     // MARK: Navigating
 
-    func startNavigation() {
+    func startNavigation(simulated: Bool = false) {
         guard let route else { return }
+        isSimulating = simulated
+        simulatedDistance = 0
         beginEngine(with: route)
         state = nil
         carPosition = nil
@@ -113,7 +128,11 @@ final class NavigationSession: ObservableObject {
                 self?.tick()
             }
         }
-        if let here = location.location { handle(here) }
+        if isSimulating {
+            advanceSimulation()
+        } else if let here = location.location {
+            handle(here, simulated: false)
+        }
     }
 
     func stopNavigation() {
@@ -128,6 +147,7 @@ final class NavigationSession: ObservableObject {
         gpsLost = false
         carPosition = nil
         resetLanes()
+        isSimulating = false
         phase = .idle
     }
 
@@ -139,11 +159,46 @@ final class NavigationSession: ObservableObject {
     }
 
     private func resetLanes() {
+        roadTask?.cancel()
+        roadTask = nil
+        roadInfo = nil
+        roadFetchedStep = -1
         laneTask?.cancel()
         laneTask = nil
         lanes = nil
         laneStep = -1
         laneFetchedStep = -1
+    }
+
+    /// Looks up the road name, route number and speed limit once per step (a step stays on one road).
+    private func updateRoad(_ s: NavigationState) {
+        guard let route, roadFetchedStep != s.stepIndex else { return }
+        roadFetchedStep = s.stepIndex
+        roadTask?.cancel()
+        roadInfo = nil
+
+        let step = route.steps[s.stepIndex]
+        let spot = route.position(atOffset: step.startOffset + min(60, (step.endOffset - step.startOffset) / 2))
+        let index = s.stepIndex
+        roadTask = Task {
+            let result = await RoadService.fetch(near: spot.coordinate, bearing: spot.bearing)
+            guard !Task.isCancelled, roadFetchedStep == index else { return }
+            roadInfo = result
+            roadTask = nil
+        }
+    }
+
+    /// Feeds a fake GPS fix one second further along the route, for testing and demos.
+    private func advanceSimulation() {
+        guard let route else { return }
+        simulatedDistance = min(route.distance, simulatedDistance + Self.simulatedSpeed)
+        let p = route.position(atOffset: simulatedDistance)
+        let fix = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: p.coordinate.latitude, longitude: p.coordinate.longitude),
+            altitude: 0, horizontalAccuracy: 5, verticalAccuracy: 5,
+            course: p.bearing, speed: Self.simulatedSpeed, timestamp: Date()
+        )
+        handle(fix, simulated: true)
     }
 
     /// Looks up lanes once per step, when the turn is within ~1.2 km.
@@ -170,7 +225,8 @@ final class NavigationSession: ObservableObject {
         }
     }
 
-    private func handle(_ loc: CLLocation) {
+    private func handle(_ loc: CLLocation, simulated: Bool) {
+        guard simulated == isSimulating else { return }   // ignore real GPS during a simulated drive
         lastFix = Date()
         gpsLost = false
         speed = max(0, loc.speed)
@@ -189,6 +245,7 @@ final class NavigationSession: ObservableObject {
     /// Runs once a second: dead-reckons through GPS gaps and periodically looks for a faster route.
     private func tick() {
         guard phase == .navigating, let engine else { return }
+        if isSimulating { advanceSimulation() }
 
         let gap = Date().timeIntervalSince(lastFix)
         if gap > 2 {
@@ -229,6 +286,7 @@ final class NavigationSession: ObservableObject {
     private func apply(_ s: NavigationState, from loc: CLLocation?) {
         updateCar(s, from: loc)
         state = s
+        updateRoad(s)
         updateLanes(s)
         if let a = announcer.next(for: s, speed: speed) {
             voice.speak(a, units: Units.current)

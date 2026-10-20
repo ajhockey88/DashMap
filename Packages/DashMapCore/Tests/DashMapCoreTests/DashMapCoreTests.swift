@@ -136,5 +136,27 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(p.coordinate.latitude, 40.0025, accuracy: 1e-4)
         XCTAssertEqual(p.bearing, 0, accuracy: 1e-6)
     }
+
+    func testRoadInfoNameRefAndSpeedLimit() {
+        let json = """
+        {"elements":[
+          {"type":"way","tags":{"highway":"footway","name":"Park Path"},"geometry":[{"lat":40.0,"lon":-100.0},{"lat":40.001,"lon":-100.0}]},
+          {"type":"way","tags":{"highway":"primary","name":"Elm Street","ref":"US 1;SR 5","maxspeed":"35 mph","oneway":"yes"},
+           "geometry":[{"lat":40.0,"lon":-100.0},{"lat":40.001,"lon":-100.0}]}]}
+        """
+        let info = OSMRoad.info(from: Data(json.utf8), at: Coordinate(latitude: 40.0005, longitude: -100.0), travelBearing: 0)
+        XCTAssertEqual(info?.name, "Elm Street")
+        XCTAssertEqual(info?.ref, "US 1")
+        XCTAssertEqual(info?.title, "Elm Street")
+        XCTAssertEqual(info?.speedLimitKph ?? 0, 56.327, accuracy: 0.01)
+        XCTAssertEqual(info?.isHighway, false)
+    }
+
+    func testSpeedParsing() {
+        XCTAssertEqual(OSMRoad.parseSpeed("50"), 50)
+        XCTAssertEqual(OSMRoad.parseSpeed("30 mph") ?? 0, 48.28, accuracy: 0.01)
+        XCTAssertNil(OSMRoad.parseSpeed("none"))
+        XCTAssertNil(OSMRoad.parseSpeed(nil))
+    }
 }
 

@@ -17,6 +17,11 @@ Lay the phone on the dashboard; the mirrored display reflects off the windshield
 - Settings: units (auto/mi/km), voice, start display, HUD style, windshield mirroring
 - Location-off banner with a shortcut to Settings; confirm before ending navigation; haptics on start/arrival
 
+## Road info and simulator
+Current street name, highway/route number shield and speed limit (turns the speed red when over) show on the map
+screen and both HUD styles. Same OpenStreetMap source and coverage caveats as lanes; one lookup per route step.
+"Simulate drive" on the route preview replays the route as fake GPS, so you can test turns, lanes and the HUD indoors.
+
 ## Lane guidance
 Lane arrows (which lanes turn, which go straight, which to use) near each turn, on the map screen and both HUD styles.
 Data comes from OpenStreetMap `turn:lanes` tags via the public Overpass API (one query per turn, no key). It only

@@ -58,13 +58,15 @@ struct HUDView: View {
                     Label(s.thenInstruction ?? "", systemImage: then.symbolName)
                         .font(.title3).lineLimit(1).foregroundStyle(.secondary)
                 }
+                if let road = session.roadInfo { RoadChip(info: road, large: true) }
                 if session.gpsLost {
                     Label("GPS lost – estimating", systemImage: "location.slash").font(.footnote).foregroundStyle(.yellow)
                 }
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 32) {
                     let sp = units.speed(session.speed)
-                    stat("\(sp.value)", sp.unit, big: true)
+                    stat("\(sp.value)", sp.unit, big: true, warn: session.isSpeeding)
+                    if let kph = session.roadInfo?.speedLimitKph { SpeedLimitSign(kph: kph, units: units, size: 56) }
                     stat(arrival(s.timeRemaining), "arrive")
                     stat(units.distance(s.distanceRemaining), "left")
                 }
@@ -112,11 +114,13 @@ struct HUDView: View {
                 if let lanes = session.activeLanes {
                     LaneStrip(guidance: lanes).padding(.top, 8)
                 }
+                if let road = session.roadInfo { RoadChip(info: road).padding(.top, 8) }
                 Spacer()
                 if let s = session.state {
                     HStack(alignment: .firstTextBaseline, spacing: 28) {
                         let sp = units.speed(session.speed)
-                        stat("\(sp.value)", sp.unit, big: true)
+                        stat("\(sp.value)", sp.unit, big: true, warn: session.isSpeeding)
+                    if let kph = session.roadInfo?.speedLimitKph { SpeedLimitSign(kph: kph, units: units, size: 56) }
                         stat(arrival(s.timeRemaining), "arrive")
                         stat(units.distance(s.distanceRemaining), "left")
                     }
@@ -130,9 +134,10 @@ struct HUDView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func stat(_ value: String, _ label: String, big: Bool = false) -> some View {
+    private func stat(_ value: String, _ label: String, big: Bool = false, warn: Bool = false) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.system(size: big ? 72 : 36, weight: .bold, design: .rounded))
+                .foregroundStyle(warn ? Theme.danger : .white)
             Text(label).font(.footnote).foregroundStyle(.secondary)
         }
     }

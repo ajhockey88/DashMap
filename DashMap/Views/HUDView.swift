@@ -8,10 +8,11 @@ struct HUDView: View {
     @AppStorage("hud.mirrored") private var mirrored = true
     @AppStorage("hud.style") private var style = "arrows"   // "arrows" or "map"
     @State private var following = true
-    @AppStorage("hud.metric") private var metric = Units.localeDefault.metric
+    @AppStorage("units") private var unitsSetting = "auto"
+    @State private var showEnd = false
     @State private var previousBrightness = UIScreen.main.brightness
 
-    private var units: Units { Units(metric: metric) }
+    private var units: Units { Units(setting: unitsSetting) }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -42,7 +43,7 @@ struct HUDView: View {
             if let s = session.state {
                 Image(systemName: s.nextManeuver.symbolName)
                     .font(.system(size: 150, weight: .bold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(Theme.accent)
                 Text(units.distance(s.distanceToManeuver))
                     .font(.system(size: 80, weight: .heavy, design: .rounded))
                 Text(s.nextInstruction)
@@ -92,7 +93,7 @@ struct HUDView: View {
                     HStack(spacing: 14) {
                         Image(systemName: s.nextManeuver.symbolName)
                             .font(.system(size: 56, weight: .bold))
-                            .foregroundStyle(.green)
+                            .foregroundStyle(Theme.accent)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(units.distance(s.distanceToManeuver))
                                 .font(.system(size: 44, weight: .heavy, design: .rounded))
@@ -142,17 +143,23 @@ struct HUDView: View {
             Button { style = style == "map" ? "arrows" : "map" } label: {
                 Label(style == "map" ? "Map" : "Arrows", systemImage: style == "map" ? "map" : "arrow.up")
             }
-            Button { metric.toggle() } label: { Text(metric ? "km" : "mi") }
+            Button { unitsSetting = units.metric ? "imperial" : "metric" } label: { Text(units.metric ? "km" : "mi") }
             Button { session.voiceEnabled.toggle() } label: {
                 Image(systemName: session.voiceEnabled ? "speaker.wave.2" : "speaker.slash")
             }
             Spacer()
             Button { hud = false } label: { Text("Nav") }
-            Button { session.stopNavigation() } label: { Image(systemName: "xmark.circle.fill") }
+            Button { showEnd = true } label: { Image(systemName: "xmark.circle.fill") }
+                .accessibilityLabel("End navigation")
         }
         .buttonStyle(.bordered)
+        .controlSize(.large)
         .tint(.gray)
         .padding()
+        .confirmationDialog("End navigation?", isPresented: $showEnd, titleVisibility: .visible) {
+            Button("End navigation", role: .destructive) { session.stopNavigation() }
+            Button("Keep going", role: .cancel) {}
+        }
     }
 }
 

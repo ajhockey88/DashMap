@@ -10,6 +10,13 @@ Lay the phone on the dashboard; the mirrored display reflects off the windshield
 - Mirror / normal toggle, km/mi toggle, max brightness and screen kept awake
 - Voice prompts, off-route detection and automatic reroute, background location
 
+## Interface
+- Dark theme throughout (dark map too), one mint accent shared with the HUD and icon
+- Home screen with search, recent places and Home/Work shortcuts (touch and hold a recent to set them)
+- Route cards with time, distance, arrival and a "Fastest" tag; choose Map or HUD before pressing Start
+- Settings: units (auto/mi/km), voice, start display, HUD style, windshield mirroring
+- Location-off banner with a shortcut to Settings; confirm before ending navigation; haptics on start/arrival
+
 ## Robustness
 - Heading-aware road matching (picks the leg you're travelling along on out-and-back roads)
 - Dead reckoning through GPS dropouts (tunnels, garages), flagged in the UI

@@ -4,38 +4,89 @@ import DashMapCore
 
 struct PreviewView: View {
     @EnvironmentObject private var session: NavigationSession
+    @AppStorage("units") private var unitsSetting = "auto"
+    @AppStorage("nav.hud") private var startInHUD = false
+
+    private var units: Units { Units(setting: unitsSetting) }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            if let route = session.route {
-                RouteMap(routes: session.routes, selected: session.selectedRouteIndex).ignoresSafeArea(edges: .bottom)
-                VStack(spacing: 12) {
-                    let units = Units.localeDefault
-                    if session.routes.count > 1 {
-                        Picker("Route", selection: Binding(
-                            get: { session.selectedRouteIndex },
-                            set: { session.selectRoute($0) }
-                        )) {
-                            ForEach(Array(session.routes.enumerated()), id: \.offset) { i, r in
-                                Text(formatDuration(r.duration)).tag(i)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    Text("\(formatDuration(route.duration)) · \(units.distance(route.distance))")
-                        .font(.headline)
-                    HStack {
-                        Button("Cancel", role: .cancel) { session.stopNavigation() }
-                            .buttonStyle(.bordered)
-                        Button("Start HUD") { session.startNavigation() }
-                            .buttonStyle(.borderedProminent)
-                    }
-                }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(.regularMaterial)
+        ZStack {
+            RouteMap(routes: session.routes, selected: session.selectedRouteIndex)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                topBar
+                Spacer()
+                sheet
             }
         }
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            IconButton(systemName: "chevron.left", label: "Back") { session.stopNavigation() }
+            Text(session.destinationName)
+                .font(.headline)
+                .lineLimit(1)
+                .padding(.horizontal, 16)
+                .frame(height: 48)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.surface.opacity(0.95), in: Capsule())
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private var sheet: some View {
+        VStack(spacing: 14) {
+            let fastest = session.routes.map(\.duration).min()
+            ForEach(Array(session.routes.enumerated()), id: \.offset) { i, route in
+                let selected = i == session.selectedRouteIndex
+                Button { session.selectRoute(i) } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Text(formatDuration(route.duration)).font(.title2.bold())
+                                if route.duration == fastest {
+                                    Text("Fastest")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Theme.onAccent)
+                                        .padding(.horizontal, 8).padding(.vertical, 3)
+                                        .background(Theme.accent, in: Capsule())
+                                }
+                            }
+                            Text("\(units.distance(route.distance)) · arrive \(arrival(route.duration))")
+                                .font(.subheadline).foregroundStyle(Theme.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                            .font(.title2)
+                            .foregroundStyle(selected ? Theme.accent : Theme.secondary)
+                    }
+                    .padding(16)
+                    .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(selected ? Theme.accent : .clear, lineWidth: 2))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+
+            Picker("Display", selection: $startInHUD) {
+                Text("Map").tag(false)
+                Text("HUD").tag(true)
+            }
+            .pickerStyle(.segmented)
+
+            Button("Start") { session.startNavigation() }
+                .buttonStyle(PrimaryButtonStyle())
+        }
+        .padding(16)
+        .padding(.bottom, 8)
+        .background(Theme.surface, in: UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
+    }
+
+    private func arrival(_ secondsFromNow: Double) -> String {
+        Date().addingTimeInterval(secondsFromNow).formatted(date: .omitted, time: .shortened)
     }
 }
 
@@ -48,6 +99,7 @@ private struct RouteMap: UIViewRepresentable {
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
         map.delegate = context.coordinator
+        map.overrideUserInterfaceStyle = .dark
         map.showsUserLocation = true
         map.showsTraffic = true
         return map
@@ -65,7 +117,7 @@ private struct RouteMap: UIViewRepresentable {
         }
         if !rect.isNull, context.coordinator.fitted != routes.count {
             context.coordinator.fitted = routes.count
-            map.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 60, left: 40, bottom: 200, right: 40), animated: false)
+            map.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 100, left: 40, bottom: 420, right: 40), animated: false)
         }
     }
 
@@ -74,8 +126,9 @@ private struct RouteMap: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             let renderer = MKPolylineRenderer(overlay: overlay)
             let selected = overlay.title == "selected"
-            renderer.strokeColor = selected ? .systemBlue : .systemGray
-            renderer.lineWidth = selected ? 7 : 5
+            renderer.strokeColor = selected ? UIColor(red: 0.30, green: 0.60, blue: 1.0, alpha: 1) : UIColor(white: 0.5, alpha: 1)
+            renderer.lineWidth = selected ? 8 : 5
+            renderer.lineCap = .round
             return renderer
         }
     }

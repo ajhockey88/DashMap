@@ -2,7 +2,7 @@ name: DashMap
 options:
   bundleIdPrefix: com.dashmap
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "17.0"
 packages:
   DashMapCore:
     path: Packages/DashMapCore
@@ -23,5 +23,6 @@ targets:
         NSLocationWhenInUseUsageDescription: DashMap uses your location to guide you to your destination.
         NSLocationAlwaysAndWhenInUseUsageDescription: DashMap keeps guiding you while the screen is off or another app is in front.
         UIBackgroundModes: [location, audio]
+        UIUserInterfaceStyle: Dark
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

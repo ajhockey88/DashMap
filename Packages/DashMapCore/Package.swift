@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "DashMapCore",
-    platforms: [.iOS(.v16), .macOS(.v13)],
+    platforms: [.iOS(.v17), .macOS(.v13)],
     products: [.library(name: "DashMapCore", targets: ["DashMapCore"])],
     targets: [
         .target(name: "DashMapCore"),

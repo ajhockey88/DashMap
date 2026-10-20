@@ -28,6 +28,7 @@ struct DrivingMap: UIViewRepresentable {
         map.isRotateEnabled = true
         switch style {
         case .standard:
+            map.overrideUserInterfaceStyle = .dark
             map.showsTraffic = true
         case .hud:
             map.overrideUserInterfaceStyle = .dark
@@ -188,7 +189,7 @@ struct DrivingMap: UIViewRepresentable {
             let traveled = overlay.title == "traveled"
             switch style {
             case .standard:
-                renderer.strokeColor = traveled ? .systemGray3 : .systemBlue
+                renderer.strokeColor = traveled ? UIColor(white: 0.4, alpha: 1) : UIColor(red: 0.30, green: 0.60, blue: 1.0, alpha: 1)
                 renderer.lineWidth = 9
             case .hud:
                 renderer.strokeColor = traveled ? UIColor(white: 0.25, alpha: 1) : UIColor(red: 0.29, green: 0.94, blue: 0.63, alpha: 1)

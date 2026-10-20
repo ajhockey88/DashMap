@@ -3,7 +3,18 @@ import Foundation
 struct Units {
     var metric: Bool
 
-    static var localeDefault: Units { Units(metric: Locale.current.measurementSystem == .metric) }
+    init(metric: Bool) { self.metric = metric }
+
+    /// `setting` is the "units" preference: "auto" (follow the region), "metric" or "imperial".
+    init(setting: String) {
+        switch setting {
+        case "metric": metric = true
+        case "imperial": metric = false
+        default: metric = Locale.current.measurementSystem == .metric
+        }
+    }
+
+    static var current: Units { Units(setting: UserDefaults.standard.string(forKey: "units") ?? "auto") }
 
     func distance(_ meters: Double) -> String {
         if metric {

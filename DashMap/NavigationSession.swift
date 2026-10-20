@@ -3,6 +3,7 @@ import CoreLocation
 import DashMapCore
 import Foundation
 import MapKit
+import UIKit
 
 @MainActor
 final class NavigationSession: ObservableObject {
@@ -19,7 +20,13 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var carPosition: Coordinate?
     @Published private(set) var carHeading: Double = 0
     @Published var errorMessage: String?
-    @Published var voiceEnabled = true { didSet { voice.enabled = voiceEnabled } }
+    @Published private(set) var destinationName = ""
+    @Published var voiceEnabled = UserDefaults.standard.object(forKey: "voice.enabled") as? Bool ?? true {
+        didSet {
+            voice.enabled = voiceEnabled
+            UserDefaults.standard.set(voiceEnabled, forKey: "voice.enabled")
+        }
+    }
 
     let location = LocationService()
     private let voice = Voice()
@@ -41,6 +48,7 @@ final class NavigationSession: ObservableObject {
     static let maxDeadReckoning = 120.0
 
     init() {
+        voice.enabled = voiceEnabled
         cancellable = location.$location.compactMap { $0 }.sink { [weak self] in self?.handle($0) }
         location.start()
     }
@@ -56,6 +64,7 @@ final class NavigationSession: ObservableObject {
         }
         phase = .loading
         self.destination = destination
+        destinationName = destination.name ?? "Destination"
         do {
             routes = try await MapKitRouter.routes(from: here.coordinate2D, to: destination)
             selectedRouteIndex = 0
@@ -84,6 +93,7 @@ final class NavigationSession: ObservableObject {
         lastFix = Date()
         lastFasterRouteCheck = Date()
         location.setBackground(true)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
         ticker?.cancel()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
@@ -174,10 +184,11 @@ final class NavigationSession: ObservableObject {
         updateCar(s, from: loc)
         state = s
         if let a = announcer.next(for: s, speed: speed) {
-            voice.speak(a, units: Units.localeDefault)
+            voice.speak(a, units: Units.current)
         }
         switch s.status {
         case .arrived:
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             ticker?.cancel()
             Task { try? await Task.sleep(nanoseconds: 4_000_000_000); self.stopNavigation() }
         case .offRoute:

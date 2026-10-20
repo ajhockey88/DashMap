@@ -8,6 +8,7 @@ struct HUDView: View {
     @AppStorage("hud.mirrored") private var mirrored = true
     @AppStorage("hud.style") private var style = "arrows"   // "arrows" or "map"
     @State private var following = true
+    @AppStorage("map.traffic") private var showTraffic = true
     @AppStorage("units") private var unitsSetting = "auto"
     @State private var showEnd = false
     @State private var previousBrightness = UIScreen.main.brightness
@@ -97,6 +98,7 @@ struct HUDView: View {
                 heading: session.carHeading,
                 speed: session.speed,
                 lanePaint: session.activeLanePaint,
+                showsTraffic: showTraffic,
                 following: $following
             )
             .ignoresSafeArea()

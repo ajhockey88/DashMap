@@ -6,12 +6,13 @@ struct PreviewView: View {
     @EnvironmentObject private var session: NavigationSession
     @AppStorage("units") private var unitsSetting = "auto"
     @AppStorage("nav.hud") private var startInHUD = false
+    @AppStorage("map.traffic") private var showTraffic = true
 
     private var units: Units { Units(setting: unitsSetting) }
 
     var body: some View {
         ZStack {
-            RouteMap(routes: session.routes, selected: session.selectedRouteIndex)
+            RouteMap(routes: session.routes, selected: session.selectedRouteIndex, showsTraffic: showTraffic)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -98,6 +99,7 @@ struct PreviewView: View {
 private struct RouteMap: UIViewRepresentable {
     let routes: [Route]
     let selected: Int
+    let showsTraffic: Bool
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -106,11 +108,12 @@ private struct RouteMap: UIViewRepresentable {
         map.delegate = context.coordinator
         map.overrideUserInterfaceStyle = .dark
         map.showsUserLocation = true
-        map.showsTraffic = true
+        map.showsTraffic = showsTraffic
         return map
     }
 
     func updateUIView(_ map: MKMapView, context: Context) {
+        if map.showsTraffic != showsTraffic { map.showsTraffic = showsTraffic }
         map.removeOverlays(map.overlays)
         // Draw alternatives first so the selected route sits on top.
         var rect = MKMapRect.null
@@ -132,7 +135,7 @@ private struct RouteMap: UIViewRepresentable {
             let renderer = MKPolylineRenderer(overlay: overlay)
             let selected = overlay.title == "selected"
             renderer.strokeColor = selected ? UIColor(red: 0.30, green: 0.60, blue: 1.0, alpha: 1) : UIColor(white: 0.5, alpha: 1)
-            renderer.lineWidth = selected ? 8 : 5
+            renderer.lineWidth = selected ? 6 : 4
             renderer.lineCap = .round
             return renderer
         }

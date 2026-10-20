@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("nav.hud") private var startInHUD = false
     @AppStorage("hud.style") private var hudStyle = "arrows"
     @AppStorage("hud.mirrored") private var mirrored = true
+    @AppStorage("map.traffic") private var showTraffic = true
 
     var body: some View {
         NavigationStack {
@@ -31,6 +32,7 @@ struct SettingsView: View {
                         Text("Arrows and text").tag("arrows")
                         Text("Moving map").tag("map")
                     }
+                    Toggle("Show traffic on the map", isOn: $showTraffic)
                     Toggle("Mirror HUD for windshield", isOn: $mirrored)
                 } header: {
                     Text("Display")

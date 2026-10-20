@@ -1,0 +1,2 @@
+// Optional include: copy Secrets.example.xcconfig to Secrets.xcconfig and add your key.
+#include? "Secrets.xcconfig"

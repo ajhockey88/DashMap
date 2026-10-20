@@ -1,0 +1,33 @@
+name: DashMap
+options:
+  bundleIdPrefix: com.dashmap
+  deploymentTarget:
+    iOS: "16.0"
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+packages:
+  DashMapCore:
+    path: Packages/DashMapCore
+  GoogleMaps:
+    url: https://github.com/googlemaps/ios-maps-sdk
+    from: 9.0.0
+targets:
+  DashMap:
+    type: application
+    platform: iOS
+    sources: [DashMap]
+    dependencies:
+      - package: DashMapCore
+      - package: GoogleMaps
+        product: GoogleMaps
+    info:
+      path: DashMap/Info.plist
+      properties:
+        CFBundleDisplayName: DashMap
+        GOOGLE_API_KEY: $(GOOGLE_API_KEY)
+        NSLocationWhenInUseUsageDescription: DashMap uses your location to guide you to your destination.
+        NSLocationAlwaysAndWhenInUseUsageDescription: DashMap keeps guiding you while the screen is off or another app is in front.
+        UIBackgroundModes: [location, audio]
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]

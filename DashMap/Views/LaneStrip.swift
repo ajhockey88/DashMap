@@ -100,11 +100,13 @@ struct LaneGlyph: Shape {
 
     /// Open arrowhead at `point`, pointing along `direction`.
     private func head(_ path: inout Path, at point: CGPoint, direction: CGPoint, size: CGFloat) {
-        let angle = atan2(direction.y, direction.x)
+        let angle: Double = atan2(Double(direction.y), Double(direction.x))
         for side in [-1.0, 1.0] {
-            let a = angle + .pi + side * 0.62
+            let a: Double = angle + Double.pi + side * 0.62
+            let dx = CGFloat(Double(size) * cos(a))
+            let dy = CGFloat(Double(size) * sin(a))
             path.move(to: point)
-            path.addLine(to: CGPoint(x: point.x + size * cos(a), y: point.y + size * sin(a)))
+            path.addLine(to: CGPoint(x: point.x + dx, y: point.y + dy))
         }
     }
 }

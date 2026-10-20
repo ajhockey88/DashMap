@@ -1,0 +1,49 @@
+<!doctype html><meta charset=utf-8>
+<style>
+:root{--acc:#4af0a1;--bg:#0a0f0f;--sf:#171c1c;--sr:#242b2b;--route:#4d99ff}
+*{box-sizing:border-box;margin:0}
+body{width:390px;height:844px;background:#000;color:#fff;font:600 17px -apple-system,Helvetica,Arial,sans-serif;overflow:hidden;position:relative}
+.sb{position:absolute;top:14px;left:30px;right:30px;display:flex;justify-content:space-between;font-size:15px}
+.pill{position:absolute;top:11px;left:124px;width:142px;height:36px;background:#000;border-radius:20px;z-index:9}
+.map{position:absolute;inset:0;background:#0d1514;overflow:hidden}
+.map svg{position:absolute;inset:0}
+.card{background:rgba(23,28,28,.96);border-radius:20px;padding:16px}
+.big{font:800 54px ui-rounded,Helvetica,Arial;letter-spacing:-1px}
+.sec{color:#adadad;font-weight:500;font-size:15px}
+.stat{text-align:center}.stat b{display:block;font:800 30px ui-rounded,Helvetica,Arial}
+.btn{background:var(--acc);color:#000;border-radius:16px;height:56px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.row{display:flex;align-items:center;gap:12px}
+.lane{display:flex;gap:6px}.lane i{width:34px;height:44px;border-radius:6px;background:#242b2b;display:block;text-align:center;line-height:44px;font-style:normal;color:#777}
+.lane i.on{background:var(--acc);color:#000}
+.sign{width:56px;height:56px;border-radius:50%;background:#fff;border:6px solid #e33;color:#000;font:800 22px Helvetica;display:flex;align-items:center;justify-content:center}
+</style>
+<body id=b>
+<script>
+const s=new URLSearchParams(location.search).get('s');
+const roads=`<g stroke="#1d2a29" fill="none" stroke-width="14"><path d="M-20 600 L400 560"/><path d="M60 0 L120 900"/><path d="M300 0 L260 900"/><path d="M-20 300 L420 340"/></g><g stroke="#16211f" fill="none" stroke-width="6"><path d="M-20 450 L420 430"/><path d="M200 0 L190 900"/><path d="M-20 150 L420 120"/></g>`;
+const route=`<path d="M190 760 L190 520 Q190 430 250 400 L420 360" stroke="#4d99ff" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M190 760 L190 640" stroke="#555" stroke-width="12" fill="none" stroke-linecap="round"/>`;
+const car=`<g transform="translate(190 640)"><circle r="26" fill="rgba(74,240,161,.2)"/><path d="M0 -18 L14 14 L0 7 L-14 14Z" fill="#4af0a1" stroke="#fff" stroke-width="2"/></g>`;
+const bar=`<div class="sb"><span>9:41</span><span>●●● 5G ▮</span></div><div class="pill"></div>`;
+const stats=(t)=>`<div class="row" style="justify-content:space-around"><div class="stat"><b>${t[0]}</b><span class=sec>mph</span></div><div class="sign">45</div><div class="stat"><b>6:12</b><span class=sec>arrive</span></div><div class="stat"><b>8.4</b><span class=sec>mi left</span></div></div>`;
+let h='';
+if(s=='map'){
+h=`<div class=map><svg width=390 height=844>${roads}${route}${car}</svg></div>${bar}
+<div class=card style="position:absolute;top:62px;left:12px;right:12px;display:flex;gap:14px;align-items:center"><div style="font-size:60px;color:var(--acc)">↰</div><div><div class=big style="font-size:40px">0.4 mi</div><div>Turn left onto Oak Street</div></div></div>
+<div class=card style="position:absolute;top:170px;left:12px;background:rgba(23,28,28,.9);padding:8px 12px;border-radius:14px;font-size:15px">Oak Street · <span style="color:var(--acc)">US-9</span></div>
+<div class=card style="position:absolute;bottom:30px;left:12px;right:12px">${stats(['38'])}</div>`}
+if(s=='hud'){
+h=`<div style="position:absolute;inset:0;text-align:center;padding-top:110px">
+<div style="font-size:170px;color:var(--acc);line-height:1">↰</div><div class=big style="font-size:84px">0.4 mi</div>
+<div style="font-size:24px;margin:10px 30px">Turn left onto Oak Street</div>
+<div class=lane style="justify-content:center;margin:18px 0"><i class=on>↰</i><i class=on>↑</i><i>↑</i><i>↱</i></div>
+<div class=sec style="font-size:20px">then ↱ Turn right onto Main St</div>
+<div style="position:absolute;bottom:50px;left:0;right:0">${stats(['38'])}</div></div>`}
+if(s=='preview'){
+h=`<div class=map style="bottom:360px;height:484px"><svg width=390 height=484>${roads}<path d="M190 420 L190 250 Q190 170 250 150 L420 110" stroke="#4d99ff" stroke-width="10" fill="none"/><path d="M190 420 Q120 300 140 200 L330 40" stroke="#6b7a7a" stroke-width="8" fill="none"/></svg></div>${bar}
+<div style="position:absolute;top:484px;left:0;right:0;bottom:0;background:var(--bg);padding:16px">
+<div class=sec style="margin-bottom:10px">To Riverside Coffee</div>
+<div class=card style="border:2px solid var(--acc);margin-bottom:10px"><div class=row style="justify-content:space-between"><div><b style="font-size:24px">24 min</b> <span style="background:var(--acc);color:#000;font-size:12px;padding:2px 8px;border-radius:8px">Fastest</span><div class=sec>8.4 mi · arrive 6:12 PM</div></div></div></div>
+<div class=card style="margin-bottom:14px"><b style="font-size:24px">27 min</b><div class=sec>7.9 mi · arrive 6:15 PM</div></div>
+<div class=btn>Start</div><div class=btn style="background:var(--sr);color:#fff;margin-top:10px">Simulate drive</div></div>`}
+b.innerHTML=h;
+</script>

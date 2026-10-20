@@ -1,4 +1,6 @@
-# DashMap
+<p align="center"><img src="docs/icon.png" width="128" alt="DashMap app icon"></p>
+
+<h1 align="center">DashMap</h1>
 
 A turn-by-turn navigation app for iPhone with a **windshield HUD**. Lay the phone flat on the dashboard and the
 mirrored display reflects off the windshield. Routing and search use Apple Maps (MapKit), so no API keys or
@@ -6,6 +8,17 @@ accounts are needed.
 
 > **Status:** the app and its unit tests build in CI. It has not yet been tested on a real drive. Do not rely on
 > it as your only navigation, and do not operate it while driving.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/hud.png" width="250" alt="Windshield HUD">
+  <img src="docs/screenshots/map.png" width="250" alt="Map navigation">
+  <img src="docs/screenshots/preview.png" width="250" alt="Route preview">
+</p>
+
+*HUD (shown unmirrored), map view and route preview. These are rendered mockups of the app's layout and palette, not
+captures from a device; the source is in `scripts/mockups/`. Real screenshots will replace them.*
 
 ## Features
 

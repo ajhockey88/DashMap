@@ -31,6 +31,7 @@ private struct MapNavView: View {
                 car: session.carPosition,
                 heading: session.carHeading,
                 speed: session.speed,
+                lanePaint: session.activeLanePaint,
                 following: $following
             )
             .ignoresSafeArea()
@@ -65,9 +66,10 @@ private struct MapNavView: View {
 
     @ViewBuilder private var banner: some View {
         if let s = session.state {
+            VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 16) {
-                    Image(systemName: s.nextManeuver.symbolName)
+                    Image(systemName: session.displayManeuver(for: s).symbolName)
                         .font(.system(size: 46, weight: .bold))
                         .foregroundStyle(Theme.accent)
                         .frame(width: 56)
@@ -78,6 +80,13 @@ private struct MapNavView: View {
                     }
                     Spacer(minLength: 0)
                 }
+                if let exit = session.exitInfo?.summary {
+                    Label(exit, systemImage: "signpost.right.fill")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent).lineLimit(1)
+                } else if s.distanceToManeuver > 1_000, let road = session.roadInfo?.title {
+                    Label("Continue on \(road) for \(units.distance(s.distanceToManeuver))", systemImage: "arrow.up")
+                        .font(.subheadline).foregroundStyle(Theme.secondary).lineLimit(1)
+                }
                 if let then = s.thenManeuver {
                     Divider().overlay(.white.opacity(0.2))
                     Label("Then " + (s.thenInstruction ?? ""), systemImage: then.symbolName)
@@ -87,16 +96,22 @@ private struct MapNavView: View {
                     Label("Stop: \(stop)", systemImage: "mappin.circle.fill")
                         .font(.subheadline).foregroundStyle(Theme.accent).lineLimit(1)
                 }
-                if let lanes = session.activeLanes {
-                    LaneStrip(guidance: lanes)
-                }
                 if session.gpsLost {
                     Label("GPS signal lost. Estimating position.", systemImage: "location.slash")
                         .font(.footnote).foregroundStyle(.yellow)
                 }
             }
             .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let lanes = session.activeLanes {
+                LaneStrip(guidance: lanes)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(.black.opacity(0.3))
+            }
+            }
             .background(Theme.surface.opacity(0.96), in: RoundedRectangle(cornerRadius: 20))
+            .clipShape(RoundedRectangle(cornerRadius: 20))
             .padding(.horizontal, 12)
             .padding(.top, 8)
         }

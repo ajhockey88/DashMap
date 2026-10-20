@@ -13,6 +13,8 @@ struct DrivingMap: UIViewRepresentable {
     let car: Coordinate?
     let heading: Double
     let speed: Double
+    /// Lanes painted on the road ahead of a turn (ribbon on the lane to use, arrows in every lane).
+    var lanePaint: LanePaint?
     /// False once the user pans or zooms; the recenter button sets it back to true.
     @Binding var following: Bool
 
@@ -29,7 +31,6 @@ struct DrivingMap: UIViewRepresentable {
         switch style {
         case .standard:
             map.overrideUserInterfaceStyle = .dark
-            map.showsTraffic = true
         case .hud:
             map.overrideUserInterfaceStyle = .dark
             map.mapType = .mutedStandard
@@ -47,6 +48,7 @@ struct DrivingMap: UIViewRepresentable {
     func updateUIView(_ map: MKMapView, context: Context) {
         let c = context.coordinator
         c.syncOverlays(map, route: route, state: state)
+        c.syncLanes(map, paint: lanePaint)
         guard let car else { return }
         c.syncCar(map, at: car, heading: heading)
         if following {
@@ -58,6 +60,9 @@ struct DrivingMap: UIViewRepresentable {
         private let style: Style
         private var following: Binding<Bool>
         private var overlayKey = ""
+        private var routeOverlays: [MKOverlay] = []
+        private var laneOverlays: [MKOverlay] = []
+        private var laneKey = ""
         private var carAnnotation: CarAnnotation?
         private var distance = 650.0   // camera distance in meters, eased toward a speed-based target
 
@@ -168,7 +173,7 @@ struct DrivingMap: UIViewRepresentable {
             guard key != overlayKey else { return }
             overlayKey = key
 
-            map.removeOverlays(map.overlays)
+            map.removeOverlays(routeOverlays)
             let all = route.mapCoordinates
             var done = Array(all[0...min(segment, all.count - 1)])
             var rest = Array(all[min(segment + 1, all.count - 1)...])
@@ -181,10 +186,50 @@ struct DrivingMap: UIViewRepresentable {
             traveled.title = "traveled"
             let remaining = MKPolyline(coordinates: rest, count: rest.count)
             remaining.title = "remaining"
-            map.addOverlays([traveled, remaining])
+            routeOverlays = [traveled, remaining]
+            map.addOverlays(routeOverlays)
+            // Keep the lane graphics above the route line.
+            map.removeOverlays(laneOverlays)
+            map.addOverlays(laneOverlays)
+        }
+
+        /// Lane ribbon and painted arrows, as real-world shapes so they get smaller with distance like road paint.
+        func syncLanes(_ map: MKMapView, paint: LanePaint?) {
+            let key: String
+            if let paint, let first = paint.ribbons.first?.first {
+                key = "\(paint.ribbons.count)-\(paint.arrows.count)-\(first.latitude)-\(first.longitude)"
+            } else {
+                key = ""
+            }
+            guard key != laneKey else { return }
+            laneKey = key
+            map.removeOverlays(laneOverlays)
+            laneOverlays = []
+            guard let paint else { return }
+
+            func polygon(_ points: [Coordinate], _ title: String) -> MKPolygon {
+                let coords = points.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+                let polygon = MKPolygon(coordinates: coords, count: coords.count)
+                polygon.title = title
+                return polygon
+            }
+            laneOverlays = paint.ribbons.map { polygon($0, "lane-ribbon") }
+                + paint.arrows.filter { !$0.isActive }.map { polygon($0.points, "lane-arrow-off") }
+                + paint.arrows.filter { $0.isActive }.map { polygon($0.points, "lane-arrow-on") }
+            map.addOverlays(laneOverlays)
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polygon = overlay as? MKPolygon {
+                let renderer = MKPolygonRenderer(polygon: polygon)
+                switch polygon.title {
+                case "lane-ribbon": renderer.fillColor = UIColor(red: 0.29, green: 0.94, blue: 0.63, alpha: 0.6)
+                case "lane-arrow-on": renderer.fillColor = .white
+                default: renderer.fillColor = UIColor(white: 0.55, alpha: 1)
+                }
+                renderer.strokeColor = nil
+                return renderer
+            }
             let renderer = MKPolylineRenderer(overlay: overlay)
             let traveled = overlay.title == "traveled"
             switch style {

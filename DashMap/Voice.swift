@@ -5,13 +5,14 @@ final class Voice {
     private let synth = AVSpeechSynthesizer()
     var enabled = true
 
-    func speak(_ announcement: Announcement, units: Units) {
+    func speak(_ announcement: Announcement, units: Units, exit: String? = nil) {
         var text: String
         switch announcement.stage {
         case .arrive: text = "You have arrived at your destination."
         case .near: text = announcement.instruction
         case .far: text = "In \(units.distance(announcement.distance)), \(announcement.instruction)"
         }
+        if let exit, announcement.stage != .arrive { text += ". \(exit)" }
         if let then = announcement.then { text += ", then \(then)" }
         speak(text)
     }

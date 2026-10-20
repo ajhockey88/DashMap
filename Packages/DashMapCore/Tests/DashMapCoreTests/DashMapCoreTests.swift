@@ -181,5 +181,134 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(joined?.route.duration, 30)
         XCTAssertEqual(joined?.joinOffset ?? 0, a.distance, accuracy: 1e-6)
     }
+
+    func testCorridorParseMergeAndQuery() {
+        let json = """
+        {"elements":[
+          {"type":"way","id":1,"tags":{"highway":"primary","name":"Elm Street"},"geometry":[{"lat":40.0,"lon":-100.0},{"lat":40.001,"lon":-100.0}]},
+          {"type":"node","id":9,"lat":40.0005,"lon":-100.0001,"tags":{"highway":"motorway_junction","ref":"24"}}]}
+        """
+        var corridor = OSMCorridor.parse(Data(json.utf8))!
+        XCTAssertEqual(corridor.ways.count, 1)
+        XCTAssertEqual(corridor.nodes.first?.tags["ref"], "24")
+        corridor.merge(OSMCorridor.parse(Data(json.utf8))!)
+        XCTAssertEqual(corridor.ways.count, 1, "the same way must not be added twice")
+
+        let q = OSMCorridor.query(for: makeRoute(), from: 0, to: 500, spacing: 100)
+        XCTAssertTrue(q.contains("way(around:25,40.00000,-100.00000"))
+        XCTAssertTrue(q.contains("motorway_junction"))
+    }
+
+    func testExitInfoFromJunctionAndRamp() {
+        let json = """
+        {"elements":[
+          {"type":"node","id":9,"lat":40.0005,"lon":-100.0001,"tags":{"highway":"motorway_junction","ref":"24"}},
+          {"type":"way","id":2,"tags":{"highway":"motorway_link","destination":"Springfield;Boston;Albany;Utica"},
+           "geometry":[{"lat":40.0004,"lon":-100.0002},{"lat":40.0010,"lon":-100.0006}]}]}
+        """
+        let corridor = OSMCorridor.parse(Data(json.utf8))!
+        let info = OSMExit.info(in: corridor, at: Coordinate(latitude: 40.0005, longitude: -100.0))
+        XCTAssertEqual(info?.number, "24")
+        XCTAssertEqual(info?.toward, "Springfield, Boston, Albany")
+        XCTAssertEqual(info?.summary, "Exit 24 toward Springfield, Boston, Albany")
+        XCTAssertNil(OSMExit.info(in: corridor, at: Coordinate(latitude: 41, longitude: -100)))
+    }
+
+    func testRampAndMergeRefinement() {
+        let motorway = CorridorWay(id: 1, tags: ["highway": "motorway"], points: [Coordinate(latitude: 40.000, longitude: -100.0), Coordinate(latitude: 40.002, longitude: -100.0)])
+        let ramp = CorridorWay(id: 2, tags: ["highway": "motorway_link"], points: [Coordinate(latitude: 40.0021, longitude: -100.0), Coordinate(latitude: 40.003, longitude: -99.999)])
+        let approach = (point: Coordinate(latitude: 40.0019, longitude: -100.0), bearing: 0.0)
+        let departure = (point: Coordinate(latitude: 40.0022, longitude: -99.9998), bearing: 25.0)
+        // Leaving the motorway for a link bending right.
+        XCTAssertEqual(OSMManeuver.refine(.turnSlightRight, in: [motorway, ramp], approach: approach, departure: departure), .rampRight)
+        // Joining the motorway from the link.
+        let joining = OSMManeuver.refine(.straight, in: [motorway, ramp],
+                                         approach: (point: Coordinate(latitude: 40.0025, longitude: -99.9995), bearing: 20),
+                                         departure: (point: Coordinate(latitude: 40.001, longitude: -100.0), bearing: 0))
+        XCTAssertEqual(joining, .merge)
+        // Real turns and roundabouts are left alone.
+        XCTAssertEqual(OSMManeuver.refine(.turnLeft, in: [motorway, ramp], approach: approach, departure: departure), .turnLeft)
+    }
+
+    func testSmootherReducesNoise() {
+        var smoother = PositionSmoother()
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        var rawError = 0.0, smoothError = 0.0
+        let metersPerDegree = 111_320.0
+        for i in 0..<60 {
+            let t = Double(i)
+            let truth = Coordinate(latitude: 40 + 15 * t / metersPerDegree, longitude: -100)
+            // Deterministic pseudo-noise of up to about 9 m.
+            let noiseLat = 9 * sin(t * 1.7) / metersPerDegree
+            let noiseLon = 9 * cos(t * 2.3) / (metersPerDegree * cos(40 * .pi / 180))
+            let noisy = Coordinate(latitude: truth.latitude + noiseLat, longitude: truth.longitude + noiseLon)
+            let out = smoother.update(noisy, accuracy: 8, speed: 15, course: 0, at: start.addingTimeInterval(t))
+            if i >= 10 {
+                rawError += Geo.distance(noisy, truth)
+                smoothError += Geo.distance(out, truth)
+            }
+        }
+        XCTAssertLessThan(smoothError, rawError * 0.7)
+    }
+
+    func testSmootherRestartsAfterBigJumpOrGap() {
+        var smoother = PositionSmoother()
+        let t0 = Date(timeIntervalSince1970: 2_000_000)
+        _ = smoother.update(Coordinate(latitude: 40, longitude: -100), accuracy: 5, speed: 0, course: nil, at: t0)
+        let far = Coordinate(latitude: 40.01, longitude: -100)   // about 1.1 km away
+        XCTAssertEqual(smoother.update(far, accuracy: 5, speed: 0, course: nil, at: t0.addingTimeInterval(1)), far)
+        let later = Coordinate(latitude: 40.02, longitude: -100)
+        XCTAssertEqual(smoother.update(later, accuracy: 5, speed: 0, course: nil, at: t0.addingTimeInterval(60)), later)
+    }
+
+    func testLanePaintSitsOnTheRecommendedLane() {
+        // One-way road, four lanes, the rightmost is the turn lane: its ribbon is 1.5 lane widths right of center.
+        let lanes = [
+            Lane(indications: [.left], isRecommended: false),
+            Lane(indications: [.through], isRecommended: false),
+            Lane(indications: [.through], isRecommended: false),
+            Lane(indications: [.right], isRecommended: true),
+        ]
+        let route = makeRoute()
+        let turnAt = Geo.distance(route.polyline[0], route.polyline[10])
+        let paint = LanePainter.paint(route: route, maneuverOffset: turnAt, guidance: LaneGuidance(lanes: lanes, isOneway: true))
+        XCTAssertEqual(paint?.ribbons.count, 1)
+
+        let ribbon = paint!.ribbons[0]
+        let centroid = Coordinate(
+            latitude: ribbon.map(\.latitude).reduce(0, +) / Double(ribbon.count),
+            longitude: ribbon.map(\.longitude).reduce(0, +) / Double(ribbon.count)
+        )
+        XCTAssertGreaterThan(centroid.longitude, -100, "right of a northbound route is east")
+        XCTAssertEqual(route.nearest(to: centroid).offset, 1.5 * LanePainter.laneWidth, accuracy: 0.4)
+
+        // Arrows are painted in every lane, two rows; only the right lane's are active.
+        XCTAssertTrue(paint!.arrows.contains { $0.isActive })
+        XCTAssertTrue(paint!.arrows.contains { !$0.isActive })
+        XCTAssertNil(LanePainter.paint(route: route, maneuverOffset: 3, guidance: LaneGuidance(lanes: lanes)))
+    }
+
+    func testTwoWayLanesSitRightOfCenter() {
+        XCTAssertEqual(LanePainter.lateral(lane: 0, count: 2, oneway: false, width: 3.4), 1.7, accuracy: 1e-9)
+        XCTAssertEqual(LanePainter.lateral(lane: 1, count: 2, oneway: false, width: 3.4), 5.1, accuracy: 1e-9)
+        XCTAssertEqual(LanePainter.lateral(lane: 0, count: 3, oneway: true, width: 3.4), -3.4, accuracy: 1e-9)
+    }
+
+    func testTwoTurnLanesAreBothRecommended() {
+        // left | through | right | right: a right turn may use either of the last two lanes.
+        let both = OSMLanes.guidance(fromTag: "left|through|right|right", maneuver: .turnRight)
+        XCTAssertEqual(both?.recommendedPositions, [2, 3])
+
+        // A through-or-right lane also serves a right turn, so three lanes qualify.
+        let mixed = OSMLanes.guidance(fromTag: "left|through;right|right|right", maneuver: .turnRight)
+        XCTAssertEqual(mixed?.recommendedPositions, [1, 2, 3])
+
+        // Each usable lane gets its own ribbon.
+        let route = makeRoute()
+        let turnAt = Geo.distance(route.polyline[0], route.polyline[10])
+        let paint = LanePainter.paint(route: route, maneuverOffset: turnAt, guidance: both!)
+        XCTAssertEqual(paint?.ribbons.count, 2)
+        XCTAssertEqual(Set(paint!.arrows.filter(\.isActive).map { $0.points.count }).isEmpty, false)
+    }
 }
 

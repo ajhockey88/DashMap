@@ -18,15 +18,6 @@ final class DashMapCoreTests: XCTestCase {
         )!
     }
 
-    func testPolylineDecodeReferenceExample() {
-        let pts = Geo.decodePolyline("_p~iF~ps|U_ulLnnqC_mqNvxq`@")
-        XCTAssertEqual(pts.count, 3)
-        XCTAssertEqual(pts[0].latitude, 38.5, accuracy: 1e-5)
-        XCTAssertEqual(pts[0].longitude, -120.2, accuracy: 1e-5)
-        XCTAssertEqual(pts[2].latitude, 43.252, accuracy: 1e-5)
-        XCTAssertEqual(pts[2].longitude, -126.453, accuracy: 1e-5)
-    }
-
     func testDistanceOneDegreeLatitude() {
         let d = Geo.distance(Coordinate(latitude: 0, longitude: 0), Coordinate(latitude: 1, longitude: 0))
         XCTAssertEqual(d, 111_195, accuracy: 100)
@@ -67,17 +58,15 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(spoken, [.far, .near])
     }
 
-    func testParseRoutesResponse() throws {
-        let json = """
-        {"routes":[{"duration":"120s","polyline":{"encodedPolyline":"_p~iF~ps|U_ulLnnqC"},
-         "legs":[{"steps":[
-           {"distanceMeters":100,"staticDuration":"10s","navigationInstruction":{"maneuver":"STRAIGHT","instructions":"Head north"}},
-           {"distanceMeters":200,"staticDuration":"20s","navigationInstruction":{"maneuver":"SOMETHING_NEW","instructions":"Go"}}]}]}]}
-        """
-        let route = try RoutesAPI.parse(Data(json.utf8))
-        XCTAssertEqual(route.steps.count, 2)
-        XCTAssertEqual(route.steps[1].maneuver, .unspecified)
-        XCTAssertEqual(route.duration, 120)
-        XCTAssertEqual(route.steps.map(\.duration).reduce(0, +), 120, accuracy: 1e-9)
+    func testTurnClassification() {
+        let north = Geo.bearing(from: Coordinate(latitude: 0, longitude: 0), to: Coordinate(latitude: 1, longitude: 0))
+        let east = Geo.bearing(from: Coordinate(latitude: 0, longitude: 0), to: Coordinate(latitude: 0, longitude: 1))
+        XCTAssertEqual(north, 0, accuracy: 1e-6)
+        XCTAssertEqual(east, 90, accuracy: 1e-6)
+        XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: north, after: east)), .turnRight)
+        XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: 350, after: 10)), .straight)
+        XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: 10, after: 330)), .turnSlightLeft)
+        XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: 0, after: 180)), .uturnRight)
+        XCTAssertEqual(Maneuver.fromInstruction("Enter the roundabout", fallback: .turnRight), .roundaboutRight)
     }
 }

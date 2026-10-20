@@ -2,6 +2,7 @@ import Combine
 import CoreLocation
 import DashMapCore
 import Foundation
+import MapKit
 
 @MainActor
 final class NavigationSession: ObservableObject {
@@ -18,7 +19,7 @@ final class NavigationSession: ObservableObject {
     private let voice = Voice()
     private var engine: NavigationEngine?
     private var announcer = Announcer()
-    private var destination: RoutesAPI.Destination?
+    private var destination: MKMapItem?
     private var lastReroute = Date.distantPast
     private var cancellable: AnyCancellable?
 
@@ -29,7 +30,7 @@ final class NavigationSession: ObservableObject {
 
     var currentCoordinate: Coordinate? { location.location?.coordinate2D }
 
-    func plan(to destination: RoutesAPI.Destination) async {
+    func plan(to destination: MKMapItem) async {
         guard let here = location.location else {
             errorMessage = "Waiting for your location…"
             return
@@ -37,10 +38,10 @@ final class NavigationSession: ObservableObject {
         phase = .loading
         self.destination = destination
         do {
-            route = try await fetchRoute(from: here, to: destination)
+            route = try await MapKitRouter.route(from: here.coordinate2D, to: destination)
             phase = .preview
         } catch {
-            errorMessage = Self.describe(error)
+            errorMessage = error.localizedDescription
             phase = .idle
         }
     }
@@ -64,18 +65,6 @@ final class NavigationSession: ObservableObject {
         phase = .idle
     }
 
-    private func fetchRoute(from here: CLLocation, to destination: RoutesAPI.Destination) async throws -> Route {
-        let request = try RoutesAPI.makeRequest(
-            apiKey: Config.googleAPIKey,
-            origin: here.coordinate2D,
-            heading: here.course >= 0 && here.speed > 1 ? here.course : nil,
-            destination: destination,
-            languageCode: Locale.current.identifier.replacingOccurrences(of: "_", with: "-")
-        )
-        let (data, _) = try await URLSession.shared.data(for: request)
-        return try RoutesAPI.parse(data)
-    }
-
     private func handle(_ loc: CLLocation) {
         speed = max(0, loc.speed)
         guard phase == .navigating, let engine else { return }
@@ -92,19 +81,11 @@ final class NavigationSession: ObservableObject {
             lastReroute = Date()
             voice.speak("Rerouting")
             Task {
-                guard let new = try? await fetchRoute(from: loc, to: destination), phase == .navigating else { return }
+                guard let new = try? await MapKitRouter.route(from: loc.coordinate2D, to: destination), phase == .navigating else { return }
                 route = new
                 self.engine = NavigationEngine(route: new)
                 announcer = Announcer()
             }
-        }
-    }
-
-    private static func describe(_ error: Error) -> String {
-        switch error {
-        case RoutesAPI.Failure.noRoute: return "No driving route found."
-        case RoutesAPI.Failure.server(let message): return message
-        default: return error.localizedDescription
         }
     }
 }

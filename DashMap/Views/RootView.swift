@@ -1,10 +1,11 @@
 import SwiftUI
+import MapKit
 import DashMapCore
 
 struct RootView: View {
     @EnvironmentObject private var session: NavigationSession
     @State private var query = ""
-    @State private var suggestions: [PlaceSuggestion] = []
+    @StateObject private var search = PlaceSearch()
 
     var body: some View {
         NavigationStack {
@@ -34,18 +35,21 @@ struct RootView: View {
     private var searchList: some View {
         List {
             if session.phase == .loading { ProgressView("Finding route…") }
-            ForEach(suggestions) { place in
-                Button(place.title) {
-                    Task { await session.plan(to: .placeId(place.id)) }
+            ForEach(search.results, id: \.self) { place in
+                Button {
+                    Task {
+                        guard let item = try? await search.resolve(place) else { return }
+                        await session.plan(to: item)
+                    }
+                } label: {
+                    VStack(alignment: .leading) {
+                        Text(place.title)
+                        if !place.subtitle.isEmpty { Text(place.subtitle).font(.caption).foregroundStyle(.secondary) }
+                    }
                 }
             }
         }
         .searchable(text: $query, prompt: "Where to?")
-        .task(id: query) {
-            guard query.count >= 3 else { suggestions = []; return }
-            try? await Task.sleep(nanoseconds: 250_000_000)   // debounce; cancelled by .task(id:)
-            guard !Task.isCancelled else { return }
-            suggestions = (try? await PlacesAPI.autocomplete(query, near: session.currentCoordinate)) ?? []
-        }
+        .onChange(of: query) { search.update(query: $0, near: session.location.location?.coordinate) }
     }
 }

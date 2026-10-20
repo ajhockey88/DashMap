@@ -1,5 +1,5 @@
 import SwiftUI
-import GoogleMaps
+import MapKit
 import DashMapCore
 
 struct PreviewView: View {
@@ -31,20 +31,29 @@ struct PreviewView: View {
 private struct RouteMap: UIViewRepresentable {
     let route: Route
 
-    func makeUIView(context: Context) -> GMSMapView {
-        let map = GMSMapView()
-        map.isMyLocationEnabled = true
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> MKMapView {
+        let map = MKMapView()
+        map.delegate = context.coordinator
+        map.showsUserLocation = true
         return map
     }
 
-    func updateUIView(_ map: GMSMapView, context: Context) {
-        map.clear()
-        let path = GMSMutablePath()
-        route.polyline.forEach { path.add(CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)) }
-        let line = GMSPolyline(path: path)
-        line.strokeWidth = 6
-        line.strokeColor = .systemBlue
-        line.map = map
-        map.animate(with: GMSCameraUpdate.fit(GMSCoordinateBounds(path: path), withPadding: 60))
+    func updateUIView(_ map: MKMapView, context: Context) {
+        map.removeOverlays(map.overlays)
+        let coords = route.polyline.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+        let line = MKPolyline(coordinates: coords, count: coords.count)
+        map.addOverlay(line)
+        map.setVisibleMapRect(line.boundingMapRect, edgePadding: UIEdgeInsets(top: 60, left: 40, bottom: 160, right: 40), animated: false)
+    }
+
+    final class Coordinator: NSObject, MKMapViewDelegate {
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            let renderer = MKPolylineRenderer(overlay: overlay)
+            renderer.strokeColor = .systemBlue
+            renderer.lineWidth = 6
+            return renderer
+        }
     }
 }

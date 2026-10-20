@@ -1,6 +1,6 @@
 import Foundation
 
-public enum Maneuver: String, Codable, Sendable {
+public enum Maneuver: String, Sendable {
     case unspecified = "MANEUVER_UNSPECIFIED"
     case turnSlightLeft = "TURN_SLIGHT_LEFT"
     case turnSharpLeft = "TURN_SHARP_LEFT"
@@ -20,17 +20,13 @@ public enum Maneuver: String, Codable, Sendable {
     case ferryTrain = "FERRY_TRAIN"
     case roundaboutLeft = "ROUNDABOUT_LEFT"
     case roundaboutRight = "ROUNDABOUT_RIGHT"
-    /// Not part of the API; used for the end of the route.
+    /// End of the route.
     case arrive = "ARRIVE"
 
-    public init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self)
-        self = Maneuver(rawValue: raw) ?? .unspecified
-    }
 }
 
 public struct RouteStep: Equatable, Sendable {
-    /// What to do at the *start* of this step (Routes API semantics).
+    /// What to do at the *start* of this step (MapKit semantics).
     public var instruction: String
     public var maneuver: Maneuver
     public var distance: Double
@@ -86,5 +82,32 @@ public struct Route: Equatable, Sendable {
         self.cumulative = cum
         self.steps = steps
         self.duration = duration
+    }
+}
+
+extension Maneuver {
+    /// Classifies a change of heading. `angle` is in degrees, positive = clockwise (right), in -180...180.
+    public static func classify(turnAngle angle: Double) -> Maneuver {
+        let magnitude = abs(angle)
+        let right = angle > 0
+        switch magnitude {
+        case ..<20: return .straight
+        case ..<45: return right ? .turnSlightRight : .turnSlightLeft
+        case ..<135: return right ? .turnRight : .turnLeft
+        case ..<170: return right ? .turnSharpRight : .turnSharpLeft
+        default: return right ? .uturnRight : .uturnLeft
+        }
+    }
+
+    /// Keyword overrides for cases geometry can't express, based on the (English) instruction text.
+    public static func fromInstruction(_ text: String, fallback: Maneuver) -> Maneuver {
+        let t = text.lowercased()
+        let isLeft = fallback.rawValue.contains("LEFT")
+        if t.contains("roundabout") || t.contains("traffic circle") { return isLeft ? .roundaboutLeft : .roundaboutRight }
+        if t.contains("destination") || t.contains("arrive") { return .arrive }
+        if t.contains("merge") { return .merge }
+        if t.contains("u-turn") { return isLeft ? .uturnLeft : .uturnRight }
+        if t.contains("ferry") { return .ferry }
+        return fallback
     }
 }

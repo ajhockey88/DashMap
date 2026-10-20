@@ -38,33 +38,19 @@ public enum Geo {
         return (t, hypot(pp.x - t * bb.x, pp.y - t * bb.y))
     }
 
-    /// Decodes a Google encoded polyline (precision 5).
-    public static func decodePolyline(_ encoded: String) -> [Coordinate] {
-        let bytes = Array(encoded.utf8)
-        var index = 0
-        var lat = 0
-        var lon = 0
-        var result: [Coordinate] = []
+    /// Initial bearing from `a` to `b` in degrees clockwise from north (0..<360).
+    public static func bearing(from a: Coordinate, to b: Coordinate) -> Double {
+        let lat1 = a.latitude * .pi / 180, lat2 = b.latitude * .pi / 180
+        let dLon = (b.longitude - a.longitude) * .pi / 180
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+        return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+    }
 
-        func nextValue() -> Int? {
-            var shift = 0
-            var value = 0
-            while index < bytes.count {
-                let b = Int(bytes[index]) - 63
-                index += 1
-                value |= (b & 0x1F) << shift
-                shift += 5
-                if b < 0x20 { return (value & 1) != 0 ? ~(value >> 1) : value >> 1 }
-            }
-            return nil
-        }
-
-        while index < bytes.count {
-            guard let dLat = nextValue(), let dLon = nextValue() else { break }
-            lat += dLat
-            lon += dLon
-            result.append(Coordinate(latitude: Double(lat) / 1e5, longitude: Double(lon) / 1e5))
-        }
-        return result
+    /// Signed heading change from `before` to `after`, in -180...180 (positive = right).
+    public static func turnAngle(before: Double, after: Double) -> Double {
+        var d = (after - before).truncatingRemainder(dividingBy: 360)
+        if d > 180 { d -= 360 } else if d < -180 { d += 360 }
+        return d
     }
 }

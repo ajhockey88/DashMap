@@ -293,5 +293,22 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(LanePainter.lateral(lane: 1, count: 2, oneway: false, width: 3.4), 5.1, accuracy: 1e-9)
         XCTAssertEqual(LanePainter.lateral(lane: 0, count: 3, oneway: true, width: 3.4), -3.4, accuracy: 1e-9)
     }
+
+    func testTwoTurnLanesAreBothRecommended() {
+        // left | through | right | right: a right turn may use either of the last two lanes.
+        let both = OSMLanes.guidance(fromTag: "left|through|right|right", maneuver: .turnRight)
+        XCTAssertEqual(both?.recommendedPositions, [2, 3])
+
+        // A through-or-right lane also serves a right turn, so three lanes qualify.
+        let mixed = OSMLanes.guidance(fromTag: "left|through;right|right|right", maneuver: .turnRight)
+        XCTAssertEqual(mixed?.recommendedPositions, [1, 2, 3])
+
+        // Each usable lane gets its own ribbon.
+        let route = makeRoute()
+        let turnAt = Geo.distance(route.polyline[0], route.polyline[10])
+        let paint = LanePainter.paint(route: route, maneuverOffset: turnAt, guidance: both!)
+        XCTAssertEqual(paint?.ribbons.count, 2)
+        XCTAssertEqual(Set(paint!.arrows.filter(\.isActive).map { $0.points.count }).isEmpty, false)
+    }
 }
 

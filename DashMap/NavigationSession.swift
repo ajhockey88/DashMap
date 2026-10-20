@@ -19,6 +19,8 @@ final class NavigationSession: ObservableObject {
     /// Where to draw the car and which way it faces (degrees clockwise from north); smoothed for the map camera.
     @Published private(set) var carPosition: Coordinate?
     @Published private(set) var carHeading: Double = 0
+    /// Lane markings for the approach to the next maneuver, when known.
+    @Published private(set) var lanes: LaneGuidance?
     @Published var errorMessage: String?
     @Published private(set) var destinationName = ""
     @Published var voiceEnabled = UserDefaults.standard.object(forKey: "voice.enabled") as? Bool ?? true {
@@ -36,6 +38,10 @@ final class NavigationSession: ObservableObject {
     private var cancellable: AnyCancellable?
     private var ticker: Task<Void, Never>?
 
+    private var laneFetchedStep = -1
+    private var laneStep = -1
+    private var laneTask: Task<Void, Never>?
+
     private var lastFix = Date()
     private var lastSpeed = 0.0
     private var isRerouting = false
@@ -51,6 +57,12 @@ final class NavigationSession: ObservableObject {
         voice.enabled = voiceEnabled
         cancellable = location.$location.compactMap { $0 }.sink { [weak self] in self?.handle($0) }
         location.start()
+    }
+
+    /// Lanes to show now: only close to the turn, where they matter.
+    var activeLanes: LaneGuidance? {
+        guard let lanes, let state, state.distanceToManeuver < 800 else { return nil }
+        return lanes
     }
 
     var currentCoordinate: Coordinate? { location.location?.coordinate2D }
@@ -115,6 +127,7 @@ final class NavigationSession: ObservableObject {
         destination = nil
         gpsLost = false
         carPosition = nil
+        resetLanes()
         phase = .idle
     }
 
@@ -122,6 +135,39 @@ final class NavigationSession: ObservableObject {
         self.route = route
         engine = NavigationEngine(route: route)
         announcer = Announcer()
+        resetLanes()
+    }
+
+    private func resetLanes() {
+        laneTask?.cancel()
+        laneTask = nil
+        lanes = nil
+        laneStep = -1
+        laneFetchedStep = -1
+    }
+
+    /// Looks up lanes once per step, when the turn is within ~1.2 km.
+    private func updateLanes(_ s: NavigationState) {
+        if s.stepIndex != laneStep {
+            laneTask?.cancel()
+            laneTask = nil
+            lanes = nil
+            laneStep = s.stepIndex
+        }
+        guard let route, laneFetchedStep != s.stepIndex, s.distanceToManeuver < 1200,
+              s.status == .onRoute, s.nextManeuver != .arrive else { return }
+        laneFetchedStep = s.stepIndex
+
+        let step = s.stepIndex
+        let maneuver = s.nextManeuver
+        // A spot just before the turn identifies the road you're on and which way you travel along it.
+        let spot = route.position(atOffset: route.steps[step].endOffset - 20)
+        laneTask = Task {
+            let result = await LaneService.fetch(near: spot.coordinate, bearing: spot.bearing, maneuver: maneuver)
+            guard !Task.isCancelled, laneStep == step else { return }
+            lanes = result
+            laneTask = nil
+        }
     }
 
     private func handle(_ loc: CLLocation) {
@@ -183,6 +229,7 @@ final class NavigationSession: ObservableObject {
     private func apply(_ s: NavigationState, from loc: CLLocation?) {
         updateCar(s, from: loc)
         state = s
+        updateLanes(s)
         if let a = announcer.next(for: s, speed: speed) {
             voice.speak(a, units: Units.current)
         }

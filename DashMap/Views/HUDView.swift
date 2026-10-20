@@ -51,6 +51,9 @@ struct HUDView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .padding(.horizontal)
+                if let lanes = session.activeLanes {
+                    LaneStrip(guidance: lanes, scale: 1.3)
+                }
                 if let then = s.thenManeuver {
                     Label(s.thenInstruction ?? "", systemImage: then.symbolName)
                         .font(.title3).lineLimit(1).foregroundStyle(.secondary)
@@ -105,6 +108,9 @@ struct HUDView: View {
                     .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 16))
                     .padding(.horizontal, 12)
                     .padding(.top, 100)
+                }
+                if let lanes = session.activeLanes {
+                    LaneStrip(guidance: lanes).padding(.top, 8)
                 }
                 Spacer()
                 if let s = session.state {

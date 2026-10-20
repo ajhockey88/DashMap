@@ -107,4 +107,34 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(s.thenInstruction, "Turn right")
         XCTAssertEqual(Announcer().next(for: s, speed: 10)?.then, "Turn right")
     }
+
+    func testLaneGuidanceFromOverpassJSON() {
+        // Northbound one-way road with a left-turn lane, two through lanes and a right-turn lane.
+        let json = """
+        {"elements":[{"type":"way","tags":{"highway":"primary","oneway":"yes","lanes":"4","turn:lanes":"left|through|through|right"},
+         "geometry":[{"lat":40.0,"lon":-100.0},{"lat":40.001,"lon":-100.0}]}]}
+        """
+        let point = Coordinate(latitude: 40.0005, longitude: -100.0)
+        let right = OSMLanes.guidance(from: Data(json.utf8), at: point, travelBearing: 0, maneuver: .turnRight)
+        XCTAssertEqual(right?.lanes.count, 4)
+        XCTAssertEqual(right?.recommendedPositions, [3])
+        let straight = OSMLanes.guidance(from: Data(json.utf8), at: point, travelBearing: 0, maneuver: .straight)
+        XCTAssertEqual(straight?.recommendedPositions, [1, 2])
+        // Driving the wrong way along a one-way road yields nothing.
+        XCTAssertNil(OSMLanes.guidance(from: Data(json.utf8), at: point, travelBearing: 180, maneuver: .turnRight))
+    }
+
+    func testLaneGuidanceNeedsExplicitMarkingsAndSkipsRoundabouts() {
+        XCTAssertNil(OSMLanes.guidance(fromTag: "|", maneuver: .turnLeft))
+        XCTAssertNil(OSMLanes.guidance(fromTag: "left|through", maneuver: .roundaboutRight))
+        XCTAssertEqual(OSMLanes.guidance(fromTag: "left;through|through;right", maneuver: .turnLeft)?.recommendedPositions, [0])
+    }
+
+    func testRoutePositionAtOffset() {
+        let route = makeRoute()
+        let p = route.position(atOffset: 0.0025 * 111_195)
+        XCTAssertEqual(p.coordinate.latitude, 40.0025, accuracy: 1e-4)
+        XCTAssertEqual(p.bearing, 0, accuracy: 1e-6)
+    }
 }
+

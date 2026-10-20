@@ -17,6 +17,12 @@ Lay the phone on the dashboard; the mirrored display reflects off the windshield
 - Settings: units (auto/mi/km), voice, start display, HUD style, windshield mirroring
 - Location-off banner with a shortcut to Settings; confirm before ending navigation; haptics on start/arrival
 
+## Lane guidance
+Lane arrows (which lanes turn, which go straight, which to use) near each turn, on the map screen and both HUD styles.
+Data comes from OpenStreetMap `turn:lanes` tags via the public Overpass API (one query per turn, no key). It only
+appears where the road has been mapped with lanes; elsewhere nothing is shown. Data © OpenStreetMap contributors.
+MapKit itself exposes no lane data; Mapbox's Navigation SDK would be the more complete (paid) source.
+
 ## Robustness
 - Heading-aware road matching (picks the leg you're travelling along on out-and-back roads)
 - Dead reckoning through GPS dropouts (tunnels, garages), flagged in the UI
@@ -35,7 +41,7 @@ No API keys or accounts needed; routing and search use Apple Maps (MapKit).
 Core logic (`Packages/DashMapCore`) has no dependencies: `swift test` runs on macOS.
 
 ## Not yet built
-Speed limits and lane guidance (MapKit exposes neither), camera alerts, saved places, CarPlay, Apple Watch, landscape layout tuning.
+Speed limits (MapKit exposes none), camera alerts, saved places, CarPlay, Apple Watch, landscape layout tuning.
 
 ## Notes
 MapKit routes carry no maneuver type, so turn direction is inferred from the heading change between

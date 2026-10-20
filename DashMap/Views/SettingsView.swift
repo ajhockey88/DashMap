@@ -37,6 +37,10 @@ struct SettingsView: View {
                 } footer: {
                     Text("Lay the phone flat on the dashboard, screen up, with mirroring on. Turn mirroring off to read the HUD directly.")
                 }
+                Section("About") {
+                    Text("Lane guidance uses lane data from OpenStreetMap where it has been mapped. © OpenStreetMap contributors.")
+                        .font(.footnote)
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background)

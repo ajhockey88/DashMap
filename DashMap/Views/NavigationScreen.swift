@@ -74,6 +74,9 @@ private struct MapNavView: View {
                     Label("Then " + (s.thenInstruction ?? ""), systemImage: then.symbolName)
                         .font(.subheadline).foregroundStyle(Theme.secondary).lineLimit(1)
                 }
+                if let lanes = session.activeLanes {
+                    LaneStrip(guidance: lanes)
+                }
                 if session.gpsLost {
                     Label("GPS signal lost. Estimating position.", systemImage: "location.slash")
                         .font(.footnote).foregroundStyle(.yellow)

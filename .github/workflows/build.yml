@@ -18,27 +18,50 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew install xcodegen
-      - name: Generate Xcode project
+
+      # Everything, including the Dynamic Island widget.
+      - name: Generate project (with widget)
         run: xcodegen generate
-      - name: Build for iOS Simulator (compile check)
+      - name: Compile check for iOS Simulator
         run: |
           set -o pipefail
           xcodebuild -project DashMap.xcodeproj -scheme DashMap \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -configuration Debug CODE_SIGNING_ALLOWED=NO build | tee build-sim.log | tail -n 200
-      - name: Build unsigned device app and package an .ipa
+            -configuration Debug CODE_SIGNING_ALLOWED=NO build | tee build-sim.log | tail -n 100
+      - name: Package unsigned .ipa (with widget)
         run: |
           set -o pipefail
           xcodebuild -project DashMap.xcodeproj -scheme DashMap \
             -sdk iphoneos -destination 'generic/platform=iOS' -configuration Release \
-            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee build-device.log | tail -n 200
-          mkdir Payload
-          cp -R build/Build/Products/Release-iphoneos/DashMap.app Payload/
-          zip -qr DashMap-unsigned.ipa Payload
+            -derivedDataPath build-widget CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee build-widget.log | tail -n 100
+          mkdir -p Payload && rm -rf Payload/*
+          cp -R build-widget/Build/Products/Release-iphoneos/DashMap.app Payload/
+          zip -qr DashMap-with-widget.ipa Payload
+
+      # Without the widget: one App ID instead of two, easier to sideload with a free Apple ID.
+      - name: Generate project (no widget)
+        run: |
+          python3 scripts/make-nowidget-spec.py
+          xcodegen generate --spec project-nowidget.yml
+      - name: Package unsigned .ipa (no widget)
+        run: |
+          set -o pipefail
+          xcodebuild -project DashMap.xcodeproj -scheme DashMap \
+            -sdk iphoneos -destination 'generic/platform=iOS' -configuration Release \
+            -derivedDataPath build-nowidget CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee build-nowidget.log | tail -n 100
+          rm -rf Payload && mkdir Payload
+          cp -R build-nowidget/Build/Products/Release-iphoneos/DashMap.app Payload/
+          test ! -d Payload/DashMap.app/PlugIns
+          zip -qr DashMap-no-widget.ipa Payload
+
       - uses: actions/upload-artifact@v4
         with:
-          name: DashMap-unsigned-ipa
-          path: DashMap-unsigned.ipa
+          name: DashMap-ipa-no-widget
+          path: DashMap-no-widget.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DashMap-ipa-with-widget
+          path: DashMap-with-widget.ipa
       - uses: actions/upload-artifact@v4
         if: always()
         with:

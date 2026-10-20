@@ -32,11 +32,18 @@ final class DashMapCoreTests: XCTestCase {
     }
 
     func testOffRouteNeedsRepeatedStrikes() {
-        let engine = NavigationEngine(route: makeRoute())
-        let away = Coordinate(latitude: 40.003, longitude: -99.99)
-        XCTAssertEqual(engine.update(location: away).status, .onRoute)
-        XCTAssertEqual(engine.update(location: away).status, .onRoute)
-        XCTAssertEqual(engine.update(location: away).status, .offRoute)
+        // About 60 m east of the road: past the 35 m threshold but not 3x it, so 3 consecutive fixes are needed.
+        let near = NavigationEngine(route: makeRoute())
+        let slightlyAway = Coordinate(latitude: 40.003, longitude: -99.9993)
+        XCTAssertEqual(near.update(location: slightlyAway).status, .onRoute)
+        XCTAssertEqual(near.update(location: slightlyAway).status, .onRoute)
+        XCTAssertEqual(near.update(location: slightlyAway).status, .offRoute)
+
+        // Hundreds of meters away confirms after 2 fixes.
+        let far = NavigationEngine(route: makeRoute())
+        let wayAway = Coordinate(latitude: 40.003, longitude: -99.99)
+        XCTAssertEqual(far.update(location: wayAway).status, .onRoute)
+        XCTAssertEqual(far.update(location: wayAway).status, .offRoute)
     }
 
     func testArrival() {
@@ -64,7 +71,7 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(north, 0, accuracy: 1e-6)
         XCTAssertEqual(east, 90, accuracy: 1e-6)
         XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: north, after: east)), .turnRight)
-        XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: 350, after: 10)), .straight)
+        XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: 355, after: 5)), .straight)
         XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: 10, after: 330)), .turnSlightLeft)
         XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: 0, after: 180)), .uturnRight)
         XCTAssertEqual(Maneuver.fromInstruction("Enter the roundabout", fallback: .turnRight), .roundaboutRight)

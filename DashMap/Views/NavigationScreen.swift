@@ -18,6 +18,7 @@ private struct MapNavView: View {
     @AppStorage("units") private var unitsSetting = "auto"
     @State private var following = true
     @State private var showEnd = false
+    @State private var showStops = false
 
     private var units: Units { Units(setting: unitsSetting) }
 
@@ -44,6 +45,7 @@ private struct MapNavView: View {
                     }
                     if let road = session.roadInfo { RoadChip(info: road) }
                     Spacer(minLength: 0)
+                    IconButton(systemName: "magnifyingglass", label: "Find places along your route") { showStops = true }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -52,6 +54,9 @@ private struct MapNavView: View {
         }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .sheet(isPresented: $showStops) {
+            StopsSheet().environmentObject(session).presentationDetents([.medium, .large])
+        }
         .confirmationDialog("End navigation?", isPresented: $showEnd, titleVisibility: .visible) {
             Button("End navigation", role: .destructive) { session.stopNavigation() }
             Button("Keep going", role: .cancel) {}
@@ -77,6 +82,10 @@ private struct MapNavView: View {
                     Divider().overlay(.white.opacity(0.2))
                     Label("Then " + (s.thenInstruction ?? ""), systemImage: then.symbolName)
                         .font(.subheadline).foregroundStyle(Theme.secondary).lineLimit(1)
+                }
+                if let stop = session.stopName {
+                    Label("Stop: \(stop)", systemImage: "mappin.circle.fill")
+                        .font(.subheadline).foregroundStyle(Theme.accent).lineLimit(1)
                 }
                 if let lanes = session.activeLanes {
                     LaneStrip(guidance: lanes)

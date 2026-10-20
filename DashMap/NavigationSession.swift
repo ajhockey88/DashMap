@@ -24,6 +24,8 @@ final class NavigationSession: ObservableObject {
     /// Name, route number and speed limit of the road you're on, when known.
     @Published private(set) var roadInfo: RoadInfo?
     @Published private(set) var isSimulating = false
+    /// Name of an added stop you haven't reached yet.
+    @Published private(set) var stopName: String?
     @Published var errorMessage: String?
     @Published private(set) var destinationName = ""
     @Published var voiceEnabled = UserDefaults.standard.object(forKey: "voice.enabled") as? Bool ?? true {
@@ -47,6 +49,9 @@ final class NavigationSession: ObservableObject {
     private var roadFetchedStep = -1
     private var roadTask: Task<Void, Never>?
     private var simulatedDistance = 0.0
+    private let liveActivity = LiveActivityController()
+    private var pendingStop: MKMapItem?
+    private var stopOffset: Double?
 
     private var lastFix = Date()
     private var lastSpeed = 0.0
@@ -147,6 +152,8 @@ final class NavigationSession: ObservableObject {
         gpsLost = false
         carPosition = nil
         resetLanes()
+        clearStop()
+        liveActivity.end()
         isSimulating = false
         phase = .idle
     }
@@ -286,6 +293,8 @@ final class NavigationSession: ObservableObject {
     private func apply(_ s: NavigationState, from loc: CLLocation?) {
         updateCar(s, from: loc)
         state = s
+        if let offset = stopOffset, s.progress >= offset - 20 { clearStop() }
+        liveActivity.update(from: s, destination: destinationName, units: Units.current)
         updateRoad(s)
         updateLanes(s)
         if let a = announcer.next(for: s, speed: speed) {
@@ -303,6 +312,46 @@ final class NavigationSession: ObservableObject {
         }
     }
 
+    // MARK: Stops
+
+    func reportError(_ message: String) { errorMessage = message }
+
+    /// Routes you → stop → destination so the added time can be shown before committing.
+    func previewStop(_ item: MKMapItem) async -> StopPlan? {
+        guard let here = carPosition ?? currentCoordinate, let destination, let state,
+              let leg1 = try? await MapKitRouter.routes(from: here, to: item).first,
+              let leg2 = try? await MapKitRouter.routes(from: Coordinate(item.placemark.coordinate), to: destination).first,
+              let joined = Route.joined(leg1, leg2) else { return nil }
+        return StopPlan(item: item, route: joined.route, joinOffset: joined.joinOffset, added: joined.route.duration - state.timeRemaining)
+    }
+
+    func commitStop(_ plan: StopPlan) {
+        pendingStop = plan.item
+        stopOffset = plan.joinOffset
+        stopName = plan.item.name
+        lastRouteSwitch = Date()
+        beginEngine(with: plan.route)
+    }
+
+    private func clearStop() {
+        pendingStop = nil
+        stopOffset = nil
+        stopName = nil
+    }
+
+    /// Fresh route from `origin` that still passes the added stop, if one is pending.
+    private func routeKeepingStop(from origin: Coordinate) async throws -> (route: Route, joinOffset: Double?) {
+        guard let destination else { throw MapKitRouter.RouterError.noRoute }
+        if let stop = pendingStop,
+           let leg1 = try await MapKitRouter.routes(from: origin, to: stop).first,
+           let leg2 = try await MapKitRouter.routes(from: Coordinate(stop.placemark.coordinate), to: destination).first,
+           let joined = Route.joined(leg1, leg2) {
+            return (joined.route, joined.joinOffset)
+        }
+        guard let route = try await MapKitRouter.routes(from: origin, to: destination).first else { throw MapKitRouter.RouterError.noRoute }
+        return (route, nil)
+    }
+
     // MARK: Rerouting
 
     private func reroute(from loc: CLLocation) {
@@ -314,9 +363,10 @@ final class NavigationSession: ObservableObject {
         Task {
             defer { isRerouting = false }
             do {
-                let new = try await MapKitRouter.routes(from: loc.coordinate2D, to: destination)
+                let new = try await routeKeepingStop(from: loc.coordinate2D)
                 guard phase == .navigating else { return }
-                beginEngine(with: new[0])
+                beginEngine(with: new.route)
+                stopOffset = new.joinOffset
                 rerouteBackoff = 10
             } catch {
                 // Network or routing failure: keep the old route, retry with growing delay.
@@ -326,7 +376,7 @@ final class NavigationSession: ObservableObject {
     }
 
     private func checkForFasterRoute(from loc: CLLocation, current: NavigationState) async {
-        guard let destination,
+        guard let destination, pendingStop == nil,
               let candidates = try? await MapKitRouter.routes(from: loc.coordinate2D, to: destination),
               let best = candidates.min(by: { $0.duration < $1.duration }),
               phase == .navigating, state?.status == .onRoute else { return }

@@ -158,5 +158,21 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertNil(OSMRoad.parseSpeed("none"))
         XCTAssertNil(OSMRoad.parseSpeed(nil))
     }
+
+    func testNearestPointAlongRouteAndJoin() {
+        let route = makeRoute()
+        let r = route.nearest(to: Coordinate(latitude: 40.005, longitude: -99.9995), after: 0)
+        XCTAssertEqual(r.along, 0.005 * 111_195, accuracy: 10)
+        XCTAssertEqual(r.offset, 0.0005 * 111_195 * cos(40 * .pi / 180), accuracy: 3)
+        // Segments wholly behind `after` are not considered: the search starts at the segment containing it.
+        XCTAssertEqual(route.nearest(to: Coordinate(latitude: 40.0, longitude: -100), after: 500).along, 0.004 * 111_195, accuracy: 5)
+
+        let a = Route(polyline: [Coordinate(latitude: 40, longitude: -100), Coordinate(latitude: 40.001, longitude: -100)], steps: [], duration: 10)!
+        let b = Route(polyline: [Coordinate(latitude: 40.001, longitude: -100), Coordinate(latitude: 40.002, longitude: -100)], steps: [], duration: 20)!
+        let joined = Route.joined(a, b)
+        XCTAssertEqual(joined?.route.polyline.count, 3)
+        XCTAssertEqual(joined?.route.duration, 30)
+        XCTAssertEqual(joined?.joinOffset ?? 0, a.distance, accuracy: 1e-6)
+    }
 }
 

@@ -44,3 +44,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 extension CLLocation {
     var coordinate2D: Coordinate { Coordinate(latitude: coordinate.latitude, longitude: coordinate.longitude) }
 }
+
+extension Coordinate {
+    init(_ c: CLLocationCoordinate2D) { self.init(latitude: c.latitude, longitude: c.longitude) }
+}

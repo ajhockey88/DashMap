@@ -105,3 +105,27 @@ extension Route {
         )
     }
 }
+
+extension Route {
+    /// The point on the route at or after `offset` nearest to `c`: how far along the route it is, and how far to the side.
+    public func nearest(to c: Coordinate, after offset: Double = 0) -> (along: Double, offset: Double) {
+        var start = 0
+        while start < cumulative.count - 2 && cumulative[start + 1] < offset { start += 1 }
+        var best = (along: 0.0, offset: Double.infinity)
+        for i in start..<(polyline.count - 1) {
+            let r = Geo.project(c, onto: polyline[i], polyline[i + 1])
+            if r.offset < best.offset {
+                best = (cumulative[i] + r.t * (cumulative[i + 1] - cumulative[i]), r.offset)
+            }
+        }
+        return best
+    }
+
+    /// Two legs as one route (for a stop on the way). `joinOffset` is where the first leg ends.
+    public static func joined(_ first: Route, _ second: Route) -> (route: Route, joinOffset: Double)? {
+        var points = first.polyline
+        points.append(contentsOf: second.polyline.dropFirst())
+        guard let route = Route(polyline: points, steps: first.steps + second.steps, duration: first.duration + second.duration) else { return nil }
+        return (route, first.distance)
+    }
+}

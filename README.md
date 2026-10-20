@@ -17,6 +17,11 @@ Lay the phone on the dashboard; the mirrored display reflects off the windshield
 - Settings: units (auto/mi/km), voice, start display, HUD style, windshield mirroring
 - Location-off banner with a shortcut to Settings; confirm before ending navigation; haptics on start/arrival
 
+## Lock screen and stops
+- Live Activity: next turn, distance and ETA on the lock screen and in the Dynamic Island (widget extension `DashMapWidgets`).
+- Search along the route (map screen, magnifier): gas, food, coffee, EV charging, parking within ~2 km of the road ahead;
+  the exact added time is shown before you confirm, and reroutes keep the stop until you pass it.
+
 ## Road info and simulator
 Current street name, highway/route number shield and speed limit (turns the speed red when over) show on the map
 screen and both HUD styles. Same OpenStreetMap source and coverage caveats as lanes; one lookup per route step.

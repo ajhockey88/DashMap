@@ -17,7 +17,6 @@ private struct MapNavView: View {
     @Binding var hud: Bool
     @AppStorage("units") private var unitsSetting = "auto"
     @State private var following = true
-    @AppStorage("map.traffic") private var showTraffic = true
     @State private var showEnd = false
     @State private var showStops = false
 
@@ -33,7 +32,6 @@ private struct MapNavView: View {
                 heading: session.carHeading,
                 speed: session.speed,
                 lanePaint: session.activeLanePaint,
-                showsTraffic: showTraffic,
                 following: $following
             )
             .ignoresSafeArea()

@@ -15,8 +15,6 @@ struct DrivingMap: UIViewRepresentable {
     let speed: Double
     /// Lanes painted on the road ahead of a turn (ribbon on the lane to use, arrows in every lane).
     var lanePaint: LanePaint?
-    /// Apple's live traffic layer: roads colored green, orange and red.
-    var showsTraffic = true
     /// False once the user pans or zooms; the recenter button sets it back to true.
     @Binding var following: Bool
 
@@ -30,10 +28,10 @@ struct DrivingMap: UIViewRepresentable {
         map.showsCompass = false
         map.isPitchEnabled = true
         map.isRotateEnabled = true
-        map.showsTraffic = showsTraffic
         switch style {
         case .standard:
             map.overrideUserInterfaceStyle = .dark
+            map.showsTraffic = true
         case .hud:
             map.overrideUserInterfaceStyle = .dark
             map.mapType = .mutedStandard
@@ -50,7 +48,6 @@ struct DrivingMap: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         let c = context.coordinator
-        if map.showsTraffic != showsTraffic { map.showsTraffic = showsTraffic }
         c.syncOverlays(map, route: route, state: state)
         c.syncLanes(map, paint: lanePaint)
         guard let car else { return }
@@ -238,11 +235,11 @@ struct DrivingMap: UIViewRepresentable {
             let traveled = overlay.title == "traveled"
             switch style {
             case .standard:
-                renderer.strokeColor = traveled ? UIColor(white: 0.4, alpha: 0.8) : UIColor(red: 0.30, green: 0.60, blue: 1.0, alpha: 0.85)
-                renderer.lineWidth = 6
+                renderer.strokeColor = traveled ? UIColor(white: 0.4, alpha: 1) : UIColor(red: 0.30, green: 0.60, blue: 1.0, alpha: 1)
+                renderer.lineWidth = 9
             case .hud:
-                renderer.strokeColor = traveled ? UIColor(white: 0.25, alpha: 0.8) : UIColor(red: 0.29, green: 0.94, blue: 0.63, alpha: 0.8)
-                renderer.lineWidth = 8
+                renderer.strokeColor = traveled ? UIColor(white: 0.25, alpha: 1) : UIColor(red: 0.29, green: 0.94, blue: 0.63, alpha: 1)
+                renderer.lineWidth = 11
             }
             renderer.lineCap = .round
             renderer.lineJoin = .round

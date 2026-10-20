@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test DashMapCore
+        run: swift test --package-path Packages/DashMapCore
+
+  app:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build for iOS Simulator (compile check)
+        run: |
+          set -o pipefail
+          xcodebuild -project DashMap.xcodeproj -scheme DashMap \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug CODE_SIGNING_ALLOWED=NO build | tee build-sim.log | tail -n 200
+      - name: Build unsigned device app and package an .ipa
+        run: |
+          set -o pipefail
+          xcodebuild -project DashMap.xcodeproj -scheme DashMap \
+            -sdk iphoneos -destination 'generic/platform=iOS' -configuration Release \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee build-device.log | tail -n 200
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/DashMap.app Payload/
+          zip -qr DashMap-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DashMap-unsigned-ipa
+          path: DashMap-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-logs
+          path: build-*.log

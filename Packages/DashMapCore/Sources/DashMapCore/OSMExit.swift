@@ -30,12 +30,30 @@ public enum OSMExit {
             .filter { $0.d <= 80 }
             .min { $0.d < $1.d }?.way
 
-        let number = junction?.tags["ref"] ?? junction?.tags["junction:ref"]
-        let signed = ramp?.tags["destination"] ?? ramp?.tags["destination:forward"]
-            ?? ramp?.tags["destination:ref"] ?? junction?.tags["exit_to"] ?? junction?.tags["name"] ?? ramp?.tags["exit_to"]
-        let toward = signed.map { $0.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }.prefix(3).joined(separator: ", ") }
-        let info = ExitInfo(number: number, toward: (toward?.isEmpty ?? true) ? nil : toward)
+        let number: String? = firstValue(of: ["ref", "junction:ref"], in: junction?.tags)
+
+        // Signed destinations from the ramp, else the junction's own exit name.
+        var signed: String? = firstValue(of: ["destination", "destination:forward", "destination:ref", "exit_to"], in: ramp?.tags)
+        if signed == nil { signed = firstValue(of: ["exit_to", "name"], in: junction?.tags) }
+
+        var toward: String?
+        if let signed {
+            let parts: [String] = signed
+                .split(separator: ";")
+                .map { String($0).trimmingCharacters(in: CharacterSet.whitespaces) }
+                .filter { !$0.isEmpty }
+            if !parts.isEmpty { toward = parts.prefix(3).joined(separator: ", ") }
+        }
+        let info = ExitInfo(number: number, toward: toward)
         return info.summary == nil ? nil : info
+    }
+
+    private static func firstValue(of keys: [String], in tags: [String: String]?) -> String? {
+        guard let tags else { return nil }
+        for key in keys {
+            if let value = tags[key], !value.isEmpty { return value }
+        }
+        return nil
     }
 }
 

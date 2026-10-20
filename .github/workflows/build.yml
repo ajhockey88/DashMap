@@ -1,0 +1,101 @@
+name: Build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test DashMapCore
+        run: swift test --package-path Packages/DashMapCore
+
+  app:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # Everything, including the Dynamic Island widget.
+      - name: Generate project (with widget)
+        run: xcodegen generate
+      - name: Compile check for iOS Simulator
+        run: |
+          set -o pipefail
+          xcodebuild -project DashMap.xcodeproj -scheme DashMap \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug CODE_SIGNING_ALLOWED=NO build | tee build-sim.log | tail -n 100
+      - name: Package unsigned .ipa (with widget)
+        run: |
+          set -o pipefail
+          xcodebuild -project DashMap.xcodeproj -scheme DashMap \
+            -sdk iphoneos -destination 'generic/platform=iOS' -configuration Release \
+            -derivedDataPath build-widget CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee build-widget.log | tail -n 100
+          mkdir -p Payload && rm -rf Payload/*
+          cp -R build-widget/Build/Products/Release-iphoneos/DashMap.app Payload/
+          zip -qr DashMap-with-widget.ipa Payload
+
+      # Without the widget: one App ID instead of two, easier to sideload with a free Apple ID.
+      - name: Generate project (no widget)
+        run: |
+          python3 scripts/make-nowidget-spec.py
+          xcodegen generate --spec project-nowidget.yml
+      - name: Package unsigned .ipa (no widget)
+        run: |
+          set -o pipefail
+          xcodebuild -project DashMap.xcodeproj -scheme DashMap \
+            -sdk iphoneos -destination 'generic/platform=iOS' -configuration Release \
+            -derivedDataPath build-nowidget CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build | tee build-nowidget.log | tail -n 100
+          rm -rf Payload && mkdir Payload
+          cp -R build-nowidget/Build/Products/Release-iphoneos/DashMap.app Payload/
+          test ! -d Payload/DashMap.app/PlugIns
+          zip -qr DashMap-no-widget.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DashMap-ipa-no-widget
+          path: DashMap-no-widget.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DashMap-ipa-with-widget
+          path: DashMap-with-widget.ipa
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-logs
+          path: build-*.log
+
+  # Pushing a tag such as v0.1.0 publishes a GitHub release with the unsigned .ipa files attached.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [core-tests, app]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: DashMap-ipa-*
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > notes.md <<'NOTES'
+          Unsigned iPhone builds of DashMap (iOS 17 or later). They have not been tested on a real drive.
+
+          - **DashMap-no-widget.ipa**: recommended for a free Apple ID (one App ID).
+          - **DashMap-with-widget.ipa**: adds the lock screen and Dynamic Island turn display; needs a paid developer account.
+
+          The files are unsigned. Sign and install them with a tool such as Sideloadly using your Apple ID, then enable
+          Developer Mode (Settings, Privacy & Security) and trust your Apple ID (Settings, General, VPN & Device Management).
+          See the README for details.
+          NOTES
+          gh release create "$TAG" DashMap-no-widget.ipa DashMap-with-widget.ipa \
+            --repo "$GITHUB_REPOSITORY" --title "DashMap $TAG" --notes-file notes.md --generate-notes

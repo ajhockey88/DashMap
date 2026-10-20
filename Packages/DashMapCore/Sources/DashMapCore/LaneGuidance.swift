@@ -27,6 +27,13 @@ public struct Lane: Equatable, Sendable {
 /// Lanes on the approach to the next maneuver, left to right in the direction of travel.
 public struct LaneGuidance: Equatable, Sendable {
     public var lanes: [Lane]
+    /// True on one-way roads, where the lanes are centered on the road; otherwise they sit to the right of its centerline.
+    public var isOneway: Bool
+
+    public init(lanes: [Lane], isOneway: Bool = false) {
+        self.lanes = lanes
+        self.isOneway = isOneway
+    }
     public var recommendedPositions: [Int] { lanes.indices.filter { lanes[$0].isRecommended } }
 }
 
@@ -49,8 +56,10 @@ public enum OSMLanes {
     public static func guidance(from ways: [CorridorWay], at point: Coordinate, travelBearing: Double, maneuver: Maneuver) -> LaneGuidance? {
         guard let match = OSMWays.nearest(in: ways, at: point, travelBearing: travelBearing, accepting: { tags, along, oneway in
             laneValue(tags, alongWay: along, isOneway: oneway) != nil
-        }), let value = laneValue(match.tags, alongWay: match.alongWay, isOneway: match.isOneway) else { return nil }
-        return guidance(fromTag: value, maneuver: maneuver)
+        }), let value = laneValue(match.tags, alongWay: match.alongWay, isOneway: match.isOneway),
+              var result = guidance(fromTag: value, maneuver: maneuver) else { return nil }
+        result.isOneway = match.isOneway
+        return result
     }
 
     /// Tags are listed left to right in the direction the lanes travel.

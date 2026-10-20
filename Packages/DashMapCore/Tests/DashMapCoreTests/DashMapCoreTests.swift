@@ -260,5 +260,38 @@ final class DashMapCoreTests: XCTestCase {
         let later = Coordinate(latitude: 40.02, longitude: -100)
         XCTAssertEqual(smoother.update(later, accuracy: 5, speed: 0, course: nil, at: t0.addingTimeInterval(60)), later)
     }
+
+    func testLanePaintSitsOnTheRecommendedLane() {
+        // One-way road, four lanes, the rightmost is the turn lane: its ribbon is 1.5 lane widths right of center.
+        let lanes = [
+            Lane(indications: [.left], isRecommended: false),
+            Lane(indications: [.through], isRecommended: false),
+            Lane(indications: [.through], isRecommended: false),
+            Lane(indications: [.right], isRecommended: true),
+        ]
+        let route = makeRoute()
+        let turnAt = Geo.distance(route.polyline[0], route.polyline[10])
+        let paint = LanePainter.paint(route: route, maneuverOffset: turnAt, guidance: LaneGuidance(lanes: lanes, isOneway: true))
+        XCTAssertEqual(paint?.ribbons.count, 1)
+
+        let ribbon = paint!.ribbons[0]
+        let centroid = Coordinate(
+            latitude: ribbon.map(\.latitude).reduce(0, +) / Double(ribbon.count),
+            longitude: ribbon.map(\.longitude).reduce(0, +) / Double(ribbon.count)
+        )
+        XCTAssertGreaterThan(centroid.longitude, -100, "right of a northbound route is east")
+        XCTAssertEqual(route.nearest(to: centroid).offset, 1.5 * LanePainter.laneWidth, accuracy: 0.4)
+
+        // Arrows are painted in every lane, two rows; only the right lane's are active.
+        XCTAssertTrue(paint!.arrows.contains { $0.isActive })
+        XCTAssertTrue(paint!.arrows.contains { !$0.isActive })
+        XCTAssertNil(LanePainter.paint(route: route, maneuverOffset: 3, guidance: LaneGuidance(lanes: lanes)))
+    }
+
+    func testTwoWayLanesSitRightOfCenter() {
+        XCTAssertEqual(LanePainter.lateral(lane: 0, count: 2, oneway: false, width: 3.4), 1.7, accuracy: 1e-9)
+        XCTAssertEqual(LanePainter.lateral(lane: 1, count: 2, oneway: false, width: 3.4), 5.1, accuracy: 1e-9)
+        XCTAssertEqual(LanePainter.lateral(lane: 0, count: 3, oneway: true, width: 3.4), -3.4, accuracy: 1e-9)
+    }
 }
 

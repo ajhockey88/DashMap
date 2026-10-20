@@ -96,6 +96,7 @@ struct HUDView: View {
                 car: session.carPosition,
                 heading: session.carHeading,
                 speed: session.speed,
+                lanePaint: session.activeLanePaint,
                 following: $following
             )
             .ignoresSafeArea()

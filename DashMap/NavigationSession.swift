@@ -21,6 +21,8 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var carHeading: Double = 0
     /// Lane markings for the approach to the next maneuver, when known.
     @Published private(set) var lanes: LaneGuidance?
+    /// The same lanes as shapes to draw on the road surface of the map.
+    @Published private(set) var lanePaint: LanePaint?
     /// Name, route number and speed limit of the road you're on, when known.
     @Published private(set) var roadInfo: RoadInfo?
     /// Exit number and signed destinations for an upcoming highway exit, when known.
@@ -73,6 +75,12 @@ final class NavigationSession: ObservableObject {
         voice.enabled = voiceEnabled
         cancellable = location.$location.compactMap { $0 }.sink { [weak self] in self?.handle($0, simulated: false) }
         location.start()
+    }
+
+    /// Lane graphics for the road ahead, shown only once the turn is close.
+    var activeLanePaint: LanePaint? {
+        guard let lanePaint, let state, state.distanceToManeuver < 260 else { return nil }
+        return lanePaint
     }
 
     /// Lanes to show now: only close to the turn, where they matter.
@@ -174,6 +182,7 @@ final class NavigationSession: ObservableObject {
     private func resetLanes() {
         roadInfo = nil
         lanes = nil
+        lanePaint = nil
         exitInfo = nil
         refinedManeuver = nil
         laneStep = -1; laneResolved = false
@@ -247,6 +256,7 @@ final class NavigationSession: ObservableObject {
             laneStep = s.stepIndex
             laneResolved = false
             lanes = nil
+            lanePaint = nil
         }
         let end = route.steps[s.stepIndex].endOffset
         guard !laneResolved, s.distanceToManeuver < 1_200, s.status == .onRoute, s.nextManeuver != .arrive,
@@ -259,6 +269,7 @@ final class NavigationSession: ObservableObject {
             from: corridorStore.corridor.ways, at: spot.coordinate, travelBearing: spot.bearing,
             maneuver: refinedManeuver ?? s.nextManeuver
         )
+        lanePaint = lanes.flatMap { LanePainter.paint(route: route, maneuverOffset: end, guidance: $0) }
     }
 
     private func handle(_ loc: CLLocation, simulated: Bool) {

@@ -19,7 +19,7 @@ accounts are needed.
 - Lock screen and Dynamic Island turn display (Live Activity)
 
 **Two driving displays**
-- **Map:** a tilted driving camera that follows the car's heading, with live traffic and the driven part of the route grayed out
+- **Map:** a tilted driving camera that follows the car's heading, with the driven part of the route grayed out
 - **HUD:** black, high-contrast, optionally mirrored for the windshield, in two styles: big arrows and text, or a dark moving map
 
 **Road information** (from OpenStreetMap, where mapped)
@@ -71,7 +71,7 @@ steps, with keyword overrides for roundabouts and merges (English instruction te
 
 ## Data sources and limits
 
-- **Apple Maps (MapKit):** routes, traffic, search and the map. Apple rate-limits route requests per app.
+- **Apple Maps (MapKit):** routes (travel times account for current traffic), search and the map. No traffic colors are drawn: MapKit provides none for a route. Apple rate-limits route requests per app.
 - **OpenStreetMap via the public Overpass API:** lanes, road names, route numbers and speed limits. One small
   query per route step. Coverage depends on local mapping, so some roads show nothing and some data may be out of
   date. The public server is for light use; a public release should use a provider or its own server.

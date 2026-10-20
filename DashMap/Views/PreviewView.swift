@@ -106,7 +106,6 @@ private struct RouteMap: UIViewRepresentable {
         map.delegate = context.coordinator
         map.overrideUserInterfaceStyle = .dark
         map.showsUserLocation = true
-        map.showsTraffic = true
         return map
     }
 

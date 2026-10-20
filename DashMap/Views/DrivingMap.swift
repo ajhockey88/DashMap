@@ -31,7 +31,6 @@ struct DrivingMap: UIViewRepresentable {
         switch style {
         case .standard:
             map.overrideUserInterfaceStyle = .dark
-            map.showsTraffic = true
         case .hud:
             map.overrideUserInterfaceStyle = .dark
             map.mapType = .mutedStandard

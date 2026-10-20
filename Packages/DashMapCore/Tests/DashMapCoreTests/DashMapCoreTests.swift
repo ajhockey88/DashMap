@@ -69,4 +69,42 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(Maneuver.classify(turnAngle: Geo.turnAngle(before: 0, after: 180)), .uturnRight)
         XCTAssertEqual(Maneuver.fromInstruction("Enter the roundabout", fallback: .turnRight), .roundaboutRight)
     }
+
+    func testCoursePrefersSegmentYouAreTravelling() {
+        // Out-and-back on (almost) the same road: heading disambiguates which leg you're on.
+        let a = Coordinate(latitude: 40, longitude: -100)
+        let b = Coordinate(latitude: 40.01, longitude: -100)
+        let c = Coordinate(latitude: 40.01, longitude: -99.99995)   // ~4 m east
+        let d = Coordinate(latitude: 40, longitude: -99.99995)
+        let route = Route(polyline: [a, b, c, d], steps: [], duration: 100)!
+        let engine = NavigationEngine(route: route)
+        let s = engine.update(location: Coordinate(latitude: 40.004, longitude: -99.999975), course: 180, speed: 12)
+        XCTAssertEqual(s.segment, 2)
+    }
+
+    func testDeadReckoningAdvancesAndIsMarkedEstimated() {
+        let engine = NavigationEngine(route: makeRoute())
+        let fix = engine.update(location: Coordinate(latitude: 40.002, longitude: -100))
+        let est = engine.extrapolate(speed: 20, since: 5)
+        XCTAssertTrue(est.isEstimated)
+        XCTAssertEqual(est.progress - fix.progress, 100, accuracy: 0.001)
+        XCTAssertEqual(est.status, .onRoute)
+        // A later real fix still matches correctly.
+        let again = engine.update(location: Coordinate(latitude: 40.003, longitude: -100))
+        XCTAssertFalse(again.isEstimated)
+        XCTAssertEqual(again.progress, fix.progress + 0.001 * 111_195, accuracy: 15)
+    }
+
+    func testThenChainingForCloseManeuvers() {
+        let pts = (0...6).map { Coordinate(latitude: 40 + Double($0) * 0.001, longitude: -100) }
+        let len = Route(polyline: pts, steps: [], duration: 0)!.distance
+        let route = Route(polyline: pts, steps: [
+            RouteStep(instruction: "Head north", maneuver: .straight, distance: len * 0.5, duration: 30),
+            RouteStep(instruction: "Turn left", maneuver: .turnLeft, distance: 100, duration: 10),
+            RouteStep(instruction: "Turn right", maneuver: .turnRight, distance: len * 0.5 - 100, duration: 30),
+        ], duration: 70)!
+        let s = NavigationEngine(route: route).update(location: pts[0])
+        XCTAssertEqual(s.thenInstruction, "Turn right")
+        XCTAssertEqual(Announcer().next(for: s, speed: 10)?.then, "Turn right")
+    }
 }

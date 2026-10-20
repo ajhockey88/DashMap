@@ -33,7 +33,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let latest = locations.last, latest.horizontalAccuracy >= 0 else { return }
+        // Drop invalid, stale (cached) and very imprecise fixes; the engine dead-reckons through gaps.
+        guard let latest = locations.last(where: {
+            $0.horizontalAccuracy >= 0 && $0.horizontalAccuracy <= 100 && abs($0.timestamp.timeIntervalSinceNow) < 5
+        }) else { return }
         location = latest
     }
 }

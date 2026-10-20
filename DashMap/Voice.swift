@@ -6,12 +6,13 @@ final class Voice {
     var enabled = true
 
     func speak(_ announcement: Announcement, units: Units) {
-        let text: String
+        var text: String
         switch announcement.stage {
         case .arrive: text = "You have arrived at your destination."
         case .near: text = announcement.instruction
         case .far: text = "In \(units.distance(announcement.distance)), \(announcement.instruction)"
         }
+        if let then = announcement.then { text += ", then \(then)" }
         speak(text)
     }
 

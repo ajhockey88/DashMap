@@ -47,6 +47,8 @@ public struct Route: Equatable, Sendable {
     public let polyline: [Coordinate]
     /// Cumulative distance in meters at each polyline vertex.
     public let cumulative: [Double]
+    /// Compass bearing of each polyline segment (index i = vertex i to i+1).
+    public let segmentBearings: [Double]
     public let steps: [RouteStep]
     public let duration: Double
 
@@ -80,6 +82,7 @@ public struct Route: Equatable, Sendable {
 
         self.polyline = polyline
         self.cumulative = cum
+        self.segmentBearings = (0..<(polyline.count - 1)).map { Geo.bearing(from: polyline[$0], to: polyline[$0 + 1]) }
         self.steps = steps
         self.duration = duration
     }

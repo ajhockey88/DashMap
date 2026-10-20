@@ -4,6 +4,7 @@ import DashMapCore
 /// Windshield-reflection HUD: black background, high-contrast glyphs, optionally mirrored horizontally.
 struct HUDView: View {
     @EnvironmentObject private var session: NavigationSession
+    @Binding var hud: Bool
     @AppStorage("hud.mirrored") private var mirrored = true
     @AppStorage("hud.metric") private var metric = Units.localeDefault.metric
     @State private var previousBrightness = UIScreen.main.brightness
@@ -45,6 +46,13 @@ struct HUDView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .padding(.horizontal)
+                if let then = s.thenManeuver {
+                    Label(s.thenInstruction ?? "", systemImage: then.symbolName)
+                        .font(.title3).lineLimit(1).foregroundStyle(.secondary)
+                }
+                if session.gpsLost {
+                    Label("GPS lost – estimating", systemImage: "location.slash").font(.footnote).foregroundStyle(.yellow)
+                }
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 32) {
                     let sp = units.speed(session.speed)
@@ -82,6 +90,7 @@ struct HUDView: View {
                 Image(systemName: session.voiceEnabled ? "speaker.wave.2" : "speaker.slash")
             }
             Spacer()
+            Button { hud = false } label: { Image(systemName: "map") }
             Button { session.stopNavigation() } label: { Image(systemName: "xmark.circle.fill") }
         }
         .buttonStyle(.bordered)

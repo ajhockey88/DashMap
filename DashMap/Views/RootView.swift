@@ -20,7 +20,7 @@ struct RootView: View {
             .navigationTitle("DashMap")
         }
         .fullScreenCover(isPresented: .constant(session.phase == .navigating)) {
-            HUDView().environmentObject(session)
+            NavigationScreen().environmentObject(session)
         }
         .alert("Navigation", isPresented: Binding(
             get: { session.errorMessage != nil },

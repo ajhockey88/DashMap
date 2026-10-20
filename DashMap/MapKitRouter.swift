@@ -4,15 +4,18 @@ import DashMapCore
 /// Turns an Apple Maps (MKDirections) route into a DashMapCore `Route`.
 /// MapKit steps carry no maneuver type, so it is inferred from the heading change between steps.
 enum MapKitRouter {
-    static func route(from origin: Coordinate, to destination: MKMapItem) async throws -> Route {
+    /// Returns the primary route first, followed by any alternatives Apple Maps offers.
+    static func routes(from origin: Coordinate, to destination: MKMapItem) async throws -> [Route] {
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: origin.latitude, longitude: origin.longitude)))
         request.destination = destination
         request.transportType = .automobile
+        request.requestsAlternateRoutes = true
 
         let response = try await MKDirections(request: request).calculate()
-        guard let mk = response.routes.first, let route = convert(mk) else { throw RouterError.noRoute }
-        return route
+        let routes = response.routes.compactMap(convert)
+        guard !routes.isEmpty else { throw RouterError.noRoute }
+        return routes
     }
 
     enum RouterError: LocalizedError {

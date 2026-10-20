@@ -10,6 +10,14 @@ Lay the phone on the dashboard; the mirrored display reflects off the windshield
 - Mirror / normal toggle, km/mi toggle, max brightness and screen kept awake
 - Voice prompts, off-route detection and automatic reroute, background location
 
+## Robustness
+- Heading-aware road matching (picks the leg you're travelling along on out-and-back roads)
+- Dead reckoning through GPS dropouts (tunnels, garages), flagged in the UI
+- Reroute only on sustained deviation; retries with backoff if the network fails
+- Checks for a faster route every 90 s and switches when it saves 2+ min (or 10%)
+- Alternative routes in preview, "then…" chained prompts for close turns
+- Map view that follows the car (live traffic, traveled part grayed), switchable with the HUD
+
 ## Setup
 No API keys or accounts needed; routing and search use Apple Maps (MapKit).
 1. `brew install xcodegen && xcodegen && open DashMap.xcodeproj`
@@ -18,7 +26,7 @@ No API keys or accounts needed; routing and search use Apple Maps (MapKit).
 Core logic (`Packages/DashMapCore`) has no dependencies: `swift test` runs on macOS.
 
 ## Not yet built
-Speed limits, lane guidance, traffic/camera alerts, saved places, CarPlay, Apple Watch, landscape layout tuning.
+Speed limits and lane guidance (MapKit exposes neither), camera alerts, saved places, CarPlay, Apple Watch, landscape layout tuning.
 
 ## Notes
 MapKit routes carry no maneuver type, so turn direction is inferred from the heading change between

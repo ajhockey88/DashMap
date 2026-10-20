@@ -6,6 +6,8 @@ struct HUDView: View {
     @EnvironmentObject private var session: NavigationSession
     @Binding var hud: Bool
     @AppStorage("hud.mirrored") private var mirrored = true
+    @AppStorage("hud.style") private var style = "arrows"   // "arrows" or "map"
+    @State private var following = true
     @AppStorage("hud.metric") private var metric = Units.localeDefault.metric
     @State private var previousBrightness = UIScreen.main.brightness
 
@@ -15,8 +17,10 @@ struct HUDView: View {
         ZStack(alignment: .top) {
             Color.black.ignoresSafeArea()
 
-            display
-                .scaleEffect(x: mirrored ? -1 : 1, y: 1)
+            Group {
+                if style == "map" { mapDisplay } else { arrowsDisplay }
+            }
+            .scaleEffect(x: mirrored ? -1 : 1, y: 1)
 
             controls
         }
@@ -32,7 +36,7 @@ struct HUDView: View {
         }
     }
 
-    private var display: some View {
+    private var arrowsDisplay: some View {
         VStack(spacing: 16) {
             Spacer(minLength: 60)
             if let s = session.state {
@@ -69,6 +73,56 @@ struct HUDView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// Dark, high-contrast moving map with a compact turn banner and speed; mirrored together with the HUD.
+    private var mapDisplay: some View {
+        ZStack {
+            DrivingMap(
+                style: .hud,
+                route: session.route,
+                state: session.state,
+                car: session.carPosition,
+                heading: session.carHeading,
+                speed: session.speed,
+                following: $following
+            )
+            .ignoresSafeArea()
+
+            VStack {
+                if let s = session.state {
+                    HStack(spacing: 14) {
+                        Image(systemName: s.nextManeuver.symbolName)
+                            .font(.system(size: 56, weight: .bold))
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(units.distance(s.distanceToManeuver))
+                                .font(.system(size: 44, weight: .heavy, design: .rounded))
+                            Text(s.nextInstruction).font(.callout.weight(.semibold)).lineLimit(1)
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal, 12)
+                    .padding(.top, 100)
+                }
+                Spacer()
+                if let s = session.state {
+                    HStack(alignment: .firstTextBaseline, spacing: 28) {
+                        let sp = units.speed(session.speed)
+                        stat("\(sp.value)", sp.unit, big: true)
+                        stat(arrival(s.timeRemaining), "arrive")
+                        stat(units.distance(s.distanceRemaining), "left")
+                    }
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(.black.opacity(0.78))
+                }
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private func stat(_ value: String, _ label: String, big: Bool = false) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.system(size: big ? 72 : 36, weight: .bold, design: .rounded))
@@ -85,12 +139,15 @@ struct HUDView: View {
             Button { mirrored.toggle() } label: {
                 Label(mirrored ? "Mirrored" : "Normal", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
             }
+            Button { style = style == "map" ? "arrows" : "map" } label: {
+                Label(style == "map" ? "Map" : "Arrows", systemImage: style == "map" ? "map" : "arrow.up")
+            }
             Button { metric.toggle() } label: { Text(metric ? "km" : "mi") }
             Button { session.voiceEnabled.toggle() } label: {
                 Image(systemName: session.voiceEnabled ? "speaker.wave.2" : "speaker.slash")
             }
             Spacer()
-            Button { hud = false } label: { Image(systemName: "map") }
+            Button { hud = false } label: { Text("Nav") }
             Button { session.stopNavigation() } label: { Image(systemName: "xmark.circle.fill") }
         }
         .buttonStyle(.bordered)

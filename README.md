@@ -16,7 +16,9 @@ Lay the phone on the dashboard; the mirrored display reflects off the windshield
 - Reroute only on sustained deviation; retries with backoff if the network fails
 - Checks for a faster route every 90 s and switches when it saves 2+ min (or 10%)
 - Alternative routes in preview, "then…" chained prompts for close turns
-- Map view that follows the car (live traffic, traveled part grayed), switchable with the HUD
+- Live map view: pitched camera that rotates with the car's heading and glides with it (zoom eases out with
+  speed and in before turns), live traffic, traveled part grayed; pan to explore, tap locate to re-follow
+- HUD has two styles, "Arrows" (big arrow + text) and "Map" (dark moving map + compact banner); both can be mirrored
 
 ## Setup
 No API keys or accounts needed; routing and search use Apple Maps (MapKit).

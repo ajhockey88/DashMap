@@ -15,6 +15,9 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var state: NavigationState?
     @Published private(set) var speed: Double = 0
     @Published private(set) var gpsLost = false
+    /// Where to draw the car and which way it faces (degrees clockwise from north); smoothed for the map camera.
+    @Published private(set) var carPosition: Coordinate?
+    @Published private(set) var carHeading: Double = 0
     @Published var errorMessage: String?
     @Published var voiceEnabled = true { didSet { voice.enabled = voiceEnabled } }
 
@@ -76,6 +79,7 @@ final class NavigationSession: ObservableObject {
         guard let route else { return }
         beginEngine(with: route)
         state = nil
+        carPosition = nil
         phase = .navigating
         lastFix = Date()
         lastFasterRouteCheck = Date()
@@ -100,6 +104,7 @@ final class NavigationSession: ObservableObject {
         routes = []
         destination = nil
         gpsLost = false
+        carPosition = nil
         phase = .idle
     }
 
@@ -146,7 +151,27 @@ final class NavigationSession: ObservableObject {
         }
     }
 
+    private func updateCar(_ s: NavigationState, from loc: CLLocation?) {
+        // Sit on the road while we agree with the route; fall back to the raw fix when clearly elsewhere.
+        carPosition = s.offRouteDistance < 30 ? s.snapped : (loc?.coordinate2D ?? s.snapped)
+
+        var target: Double?
+        if let loc, loc.course >= 0, loc.speed > 1.5 {
+            target = loc.course
+        } else if let route, route.segmentBearings.indices.contains(s.segment) {
+            target = route.segmentBearings[s.segment]
+        }
+        guard let target else { return }
+        if state == nil {   // first fix of this trip: snap to it instead of easing from 0°
+            carHeading = target
+        } else {
+            carHeading += 0.4 * Geo.turnAngle(before: carHeading, after: target)
+        }
+        carHeading = (carHeading + 360).truncatingRemainder(dividingBy: 360)
+    }
+
     private func apply(_ s: NavigationState, from loc: CLLocation?) {
+        updateCar(s, from: loc)
         state = s
         if let a = announcer.next(for: s, speed: speed) {
             voice.speak(a, units: Units.localeDefault)

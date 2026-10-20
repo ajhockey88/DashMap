@@ -27,7 +27,11 @@ public enum OSMRoad {
     }
 
     public static func info(from data: Data, at point: Coordinate, travelBearing: Double) -> RoadInfo? {
-        guard let match = OSMWays.nearest(in: data, at: point, travelBearing: travelBearing, maxOffset: 15, accepting: { tags, _, _ in
+        info(from: OSMCorridor.parse(data)?.ways ?? [], at: point, travelBearing: travelBearing)
+    }
+
+    public static func info(from ways: [CorridorWay], at point: Coordinate, travelBearing: Double) -> RoadInfo? {
+        guard let match = OSMWays.nearest(in: ways, at: point, travelBearing: travelBearing, maxOffset: 15, accepting: { tags, _, _ in
             tags["highway"].map(drivable.contains) ?? false
         }) else { return nil }
 

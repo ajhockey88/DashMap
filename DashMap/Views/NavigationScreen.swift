@@ -67,7 +67,7 @@ private struct MapNavView: View {
         if let s = session.state {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 16) {
-                    Image(systemName: s.nextManeuver.symbolName)
+                    Image(systemName: session.displayManeuver(for: s).symbolName)
                         .font(.system(size: 46, weight: .bold))
                         .foregroundStyle(Theme.accent)
                         .frame(width: 56)
@@ -77,6 +77,13 @@ private struct MapNavView: View {
                         Text(s.nextInstruction).font(.headline).lineLimit(2)
                     }
                     Spacer(minLength: 0)
+                }
+                if let exit = session.exitInfo?.summary {
+                    Label(exit, systemImage: "signpost.right.fill")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.accent).lineLimit(1)
+                } else if s.distanceToManeuver > 1_000, let road = session.roadInfo?.title {
+                    Label("Continue on \(road) for \(units.distance(s.distanceToManeuver))", systemImage: "arrow.up")
+                        .font(.subheadline).foregroundStyle(Theme.secondary).lineLimit(1)
                 }
                 if let then = s.thenManeuver {
                     Divider().overlay(.white.opacity(0.2))

@@ -1,13 +1,14 @@
 import Foundation
 
-/// Picks the OpenStreetMap way you're driving on from an Overpass `out tags geom` response.
+/// Picks the OpenStreetMap way you're driving on from a set of nearby ways.
 enum OSMWays {
     struct Match {
+        var way: CorridorWay
         var offset: Double
         /// True when your direction of travel follows the way's drawn direction.
         var alongWay: Bool
         var isOneway: Bool
-        var tags: [String: String]
+        var tags: [String: String] { way.tags }
     }
 
     static func nearest(
@@ -17,13 +18,20 @@ enum OSMWays {
         maxOffset: Double = 20,
         accepting: (_ tags: [String: String], _ alongWay: Bool, _ isOneway: Bool) -> Bool
     ) -> Match? {
-        guard let response = try? JSONDecoder().decode(Response.self, from: data) else { return nil }
+        guard let corridor = OSMCorridor.parse(data) else { return nil }
+        return nearest(in: corridor.ways, at: point, travelBearing: travelBearing, maxOffset: maxOffset, accepting: accepting)
+    }
 
+    static func nearest(
+        in ways: [CorridorWay],
+        at point: Coordinate,
+        travelBearing: Double,
+        maxOffset: Double = 20,
+        accepting: (_ tags: [String: String], _ alongWay: Bool, _ isOneway: Bool) -> Bool
+    ) -> Match? {
         var best: Match?
-        for element in response.elements where element.type == "way" {
-            guard let tags = element.tags, let geometry = element.geometry, geometry.count >= 2 else { continue }
-            let pts = geometry.map { Coordinate(latitude: $0.lat, longitude: $0.lon) }
-
+        for way in ways where !way.isFar(from: point, meters: maxOffset) {
+            let pts = way.points
             var nearest = (offset: Double.infinity, bearing: 0.0)
             for i in 0..<(pts.count - 1) {
                 let r = Geo.project(point, onto: pts[i], pts[i + 1])
@@ -32,25 +40,17 @@ enum OSMWays {
             guard nearest.offset <= maxOffset else { continue }
 
             let alongWay = abs(Geo.turnAngle(before: travelBearing, after: nearest.bearing)) < 90
-            let oneway = tags["oneway"]
+            let oneway = way.tags["oneway"]
             let forwardOnly = oneway == "yes" || oneway == "true" || oneway == "1"
             let reverseOnly = oneway == "-1"
             if (forwardOnly && !alongWay) || (reverseOnly && alongWay) { continue }
             let isOneway = forwardOnly || reverseOnly
-            guard accepting(tags, alongWay, isOneway) else { continue }
+            guard accepting(way.tags, alongWay, isOneway) else { continue }
 
             if nearest.offset < (best?.offset ?? .infinity) {
-                best = Match(offset: nearest.offset, alongWay: alongWay, isOneway: isOneway, tags: tags)
+                best = Match(way: way, offset: nearest.offset, alongWay: alongWay, isOneway: isOneway)
             }
         }
         return best
     }
-
-    private struct Response: Decodable { var elements: [Element] }
-    private struct Element: Decodable {
-        var type: String
-        var tags: [String: String]?
-        var geometry: [Point]?
-    }
-    private struct Point: Decodable { var lat: Double; var lon: Double }
 }

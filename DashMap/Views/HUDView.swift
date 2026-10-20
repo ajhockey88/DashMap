@@ -41,7 +41,7 @@ struct HUDView: View {
         VStack(spacing: 16) {
             Spacer(minLength: 60)
             if let s = session.state {
-                Image(systemName: s.nextManeuver.symbolName)
+                Image(systemName: session.displayManeuver(for: s).symbolName)
                     .font(.system(size: 150, weight: .bold))
                     .foregroundStyle(Theme.accent)
                 Text(units.distance(s.distanceToManeuver))
@@ -51,6 +51,13 @@ struct HUDView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .padding(.horizontal)
+                if let exit = session.exitInfo?.summary {
+                    Label(exit, systemImage: "signpost.right.fill")
+                        .font(.title3.weight(.semibold)).foregroundStyle(Theme.accent).lineLimit(1)
+                } else if s.distanceToManeuver > 1_000, let road = session.roadInfo?.title {
+                    Text("Continue on \(road) for \(units.distance(s.distanceToManeuver))")
+                        .font(.title3).foregroundStyle(Theme.secondary).lineLimit(1)
+                }
                 if let lanes = session.activeLanes {
                     LaneStrip(guidance: lanes, scale: 1.3)
                 }
@@ -96,13 +103,16 @@ struct HUDView: View {
             VStack {
                 if let s = session.state {
                     HStack(spacing: 14) {
-                        Image(systemName: s.nextManeuver.symbolName)
+                        Image(systemName: session.displayManeuver(for: s).symbolName)
                             .font(.system(size: 56, weight: .bold))
                             .foregroundStyle(Theme.accent)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(units.distance(s.distanceToManeuver))
                                 .font(.system(size: 44, weight: .heavy, design: .rounded))
                             Text(s.nextInstruction).font(.callout.weight(.semibold)).lineLimit(1)
+                            if let exit = session.exitInfo?.summary {
+                                Text(exit).font(.footnote.weight(.semibold)).foregroundStyle(Theme.accent).lineLimit(1)
+                            }
                         }
                         Spacer()
                     }

@@ -23,6 +23,10 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var lanes: LaneGuidance?
     /// Name, route number and speed limit of the road you're on, when known.
     @Published private(set) var roadInfo: RoadInfo?
+    /// Exit number and signed destinations for an upcoming highway exit, when known.
+    @Published private(set) var exitInfo: ExitInfo?
+    /// The next maneuver as corrected with OpenStreetMap (ramps and merges), when it differs from MapKit's guess.
+    @Published private(set) var refinedManeuver: Maneuver?
     @Published private(set) var isSimulating = false
     /// Name of an added stop you haven't reached yet.
     @Published private(set) var stopName: String?
@@ -43,11 +47,11 @@ final class NavigationSession: ObservableObject {
     private var cancellable: AnyCancellable?
     private var ticker: Task<Void, Never>?
 
-    private var laneFetchedStep = -1
-    private var laneStep = -1
-    private var laneTask: Task<Void, Never>?
-    private var roadFetchedStep = -1
-    private var roadTask: Task<Void, Never>?
+    private let corridorStore = CorridorStore()
+    private var smoother = PositionSmoother()
+    private var laneStep = -1, laneResolved = false
+    private var roadStep = -1, roadResolved = false
+    private var detailsStep = -1, detailsResolved = false
     private var simulatedDistance = 0.0
     private let liveActivity = LiveActivityController()
     private var pendingStop: MKMapItem?
@@ -119,6 +123,7 @@ final class NavigationSession: ObservableObject {
         isSimulating = simulated
         simulatedDistance = 0
         beginEngine(with: route)
+        smoother.reset()
         state = nil
         carPosition = nil
         phase = .navigating
@@ -162,37 +167,64 @@ final class NavigationSession: ObservableObject {
         self.route = route
         engine = NavigationEngine(route: route)
         announcer = Announcer()
+        corridorStore.reset()
         resetLanes()
     }
 
     private func resetLanes() {
-        roadTask?.cancel()
-        roadTask = nil
         roadInfo = nil
-        roadFetchedStep = -1
-        laneTask?.cancel()
-        laneTask = nil
         lanes = nil
-        laneStep = -1
-        laneFetchedStep = -1
+        exitInfo = nil
+        refinedManeuver = nil
+        laneStep = -1; laneResolved = false
+        roadStep = -1; roadResolved = false
+        detailsStep = -1; detailsResolved = false
     }
 
-    /// Looks up the road name, route number and speed limit once per step (a step stays on one road).
-    private func updateRoad(_ s: NavigationState) {
-        guard let route, roadFetchedStep != s.stepIndex else { return }
-        roadFetchedStep = s.stepIndex
-        roadTask?.cancel()
-        roadInfo = nil
+    /// The maneuver to draw for the next turn: MapKit's, corrected with road data when we have it.
+    func displayManeuver(for s: NavigationState) -> Maneuver { refinedManeuver ?? s.nextManeuver }
 
-        let step = route.steps[s.stepIndex]
-        let spot = route.position(atOffset: step.startOffset + min(60, (step.endOffset - step.startOffset) / 2))
-        let index = s.stepIndex
-        roadTask = Task {
-            let result = await RoadService.fetch(near: spot.coordinate, bearing: spot.bearing)
-            guard !Task.isCancelled, roadFetchedStep == index else { return }
-            roadInfo = result
-            roadTask = nil
+    /// Road name, route number and speed limit, once per step (a step stays on one road), from the downloaded corridor.
+    private func updateRoad(_ s: NavigationState) {
+        guard let route else { return }
+        if s.stepIndex != roadStep {
+            roadStep = s.stepIndex
+            roadResolved = false
+            roadInfo = nil
         }
+        let step = route.steps[s.stepIndex]
+        let offset = step.startOffset + min(60, (step.endOffset - step.startOffset) / 2)
+        guard !roadResolved, corridorStore.covers(offset, of: route) else { return }
+        roadResolved = true
+        let spot = route.position(atOffset: offset)
+        roadInfo = OSMRoad.info(from: corridorStore.corridor.ways, at: spot.coordinate, travelBearing: spot.bearing)
+    }
+
+    /// Corrects the upcoming maneuver (ramp, merge) and finds exit signs, once per step, as the turn gets close.
+    private func updateDetails(_ s: NavigationState) {
+        guard let route else { return }
+        if s.stepIndex != detailsStep {
+            detailsStep = s.stepIndex
+            detailsResolved = false
+            refinedManeuver = nil
+            exitInfo = nil
+        }
+        let end = route.steps[s.stepIndex].endOffset
+        guard !detailsResolved, s.distanceToManeuver < 2_500, s.nextManeuver != .arrive,
+              corridorStore.covers(end + 40, of: route) else { return }
+        detailsResolved = true
+
+        let approach = route.position(atOffset: end - 25)
+        let departure = route.position(atOffset: end + 25)
+        let refined = OSMManeuver.refine(
+            s.nextManeuver, in: corridorStore.corridor.ways,
+            approach: (point: approach.coordinate, bearing: approach.bearing),
+            departure: (point: departure.coordinate, bearing: departure.bearing)
+        )
+        refinedManeuver = refined == s.nextManeuver ? nil : refined
+
+        let isExit = [.rampLeft, .rampRight, .forkLeft, .forkRight].contains(refined) || s.nextInstruction.lowercased().contains("exit")
+        exitInfo = isExit ? OSMExit.info(in: corridorStore.corridor, at: route.position(atOffset: end).coordinate) : nil
     }
 
     /// Feeds a fake GPS fix one second further along the route, for testing and demos.
@@ -208,28 +240,25 @@ final class NavigationSession: ObservableObject {
         handle(fix, simulated: true)
     }
 
-    /// Looks up lanes once per step, when the turn is within ~1.2 km.
+    /// Lane markings for the next turn, once per step, when it is within ~1.2 km.
     private func updateLanes(_ s: NavigationState) {
+        guard let route else { return }
         if s.stepIndex != laneStep {
-            laneTask?.cancel()
-            laneTask = nil
-            lanes = nil
             laneStep = s.stepIndex
+            laneResolved = false
+            lanes = nil
         }
-        guard let route, laneFetchedStep != s.stepIndex, s.distanceToManeuver < 1200,
-              s.status == .onRoute, s.nextManeuver != .arrive else { return }
-        laneFetchedStep = s.stepIndex
+        let end = route.steps[s.stepIndex].endOffset
+        guard !laneResolved, s.distanceToManeuver < 1_200, s.status == .onRoute, s.nextManeuver != .arrive,
+              corridorStore.covers(end, of: route) else { return }
+        laneResolved = true
 
-        let step = s.stepIndex
-        let maneuver = s.nextManeuver
         // A spot just before the turn identifies the road you're on and which way you travel along it.
-        let spot = route.position(atOffset: route.steps[step].endOffset - 20)
-        laneTask = Task {
-            let result = await LaneService.fetch(near: spot.coordinate, bearing: spot.bearing, maneuver: maneuver)
-            guard !Task.isCancelled, laneStep == step else { return }
-            lanes = result
-            laneTask = nil
-        }
+        let spot = route.position(atOffset: end - 20)
+        lanes = OSMLanes.guidance(
+            from: corridorStore.corridor.ways, at: spot.coordinate, travelBearing: spot.bearing,
+            maneuver: refinedManeuver ?? s.nextManeuver
+        )
     }
 
     private func handle(_ loc: CLLocation, simulated: Bool) {
@@ -240,12 +269,10 @@ final class NavigationSession: ObservableObject {
         lastSpeed = speed
         guard phase == .navigating, let engine else { return }
 
-        let s = engine.update(
-            location: loc.coordinate2D,
-            accuracy: loc.horizontalAccuracy,
-            course: loc.course >= 0 ? loc.course : nil,
-            speed: speed
-        )
+        // Use the course only when iOS says it is trustworthy, and smooth the position with a Kalman filter.
+        let course: Double? = loc.course >= 0 && (loc.courseAccuracy < 0 || loc.courseAccuracy < 35) ? loc.course : nil
+        let smoothed = smoother.update(loc.coordinate2D, accuracy: loc.horizontalAccuracy, speed: speed, course: course, at: loc.timestamp)
+        let s = engine.update(location: smoothed, accuracy: loc.horizontalAccuracy, course: course, speed: speed)
         apply(s, from: loc)
     }
 
@@ -294,11 +321,13 @@ final class NavigationSession: ObservableObject {
         updateCar(s, from: loc)
         state = s
         if let offset = stopOffset, s.progress >= offset - 20 { clearStop() }
-        liveActivity.update(from: s, destination: destinationName, units: Units.current)
+        if let route { corridorStore.ensure(route: route, progress: s.progress) }
         updateRoad(s)
+        updateDetails(s)
         updateLanes(s)
+        liveActivity.update(from: s, maneuver: displayManeuver(for: s), destination: destinationName, units: Units.current)
         if let a = announcer.next(for: s, speed: speed) {
-            voice.speak(a, units: Units.current)
+            voice.speak(a, units: Units.current, exit: exitInfo?.summary)
         }
         switch s.status {
         case .arrived:

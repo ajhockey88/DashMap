@@ -9,11 +9,11 @@ final class LiveActivityController {
     private var lastState: NavigationActivityAttributes.ContentState?
     private var lastUpdate = Date.distantPast
 
-    func update(from s: NavigationState, destination: String, units: Units) {
+    func update(from s: NavigationState, maneuver: Maneuver, destination: String, units: Units) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
         let state = NavigationActivityAttributes.ContentState(
-            symbolName: s.nextManeuver.symbolName,
+            symbolName: maneuver.symbolName,
             distanceText: units.distance(s.distanceToManeuver),
             instruction: s.nextInstruction,
             etaText: "\(formatDuration(s.timeRemaining)) · arrive \(Date().addingTimeInterval(s.timeRemaining).formatted(date: .omitted, time: .shortened))"

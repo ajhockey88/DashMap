@@ -30,6 +30,8 @@ final class NavigationSession: ObservableObject {
     /// The next maneuver as corrected with OpenStreetMap (ramps and merges), when it differs from MapKit's guess.
     @Published private(set) var refinedManeuver: Maneuver?
     @Published private(set) var isSimulating = false
+    /// Plain-language status of the lane lookup for the next turn; shown during simulated drives to explain a missing lane strip.
+    @Published private(set) var laneDiagnostic = ""
     /// Name of an added stop you haven't reached yet.
     @Published private(set) var stopName: String?
     @Published var errorMessage: String?
@@ -259,17 +261,28 @@ final class NavigationSession: ObservableObject {
             lanePaint = nil
         }
         let end = route.steps[s.stepIndex].endOffset
-        guard !laneResolved, s.distanceToManeuver < 1_200, s.status == .onRoute, s.nextManeuver != .arrive,
-              corridorStore.covers(end, of: route) else { return }
+        guard s.distanceToManeuver < 1_200, s.status == .onRoute, s.nextManeuver != .arrive else {
+            laneDiagnostic = ""
+            return
+        }
+        guard corridorStore.covers(end, of: route) else {
+            laneDiagnostic = "Lanes: waiting for map data. \(corridorStore.summary)"
+            return
+        }
+        guard !laneResolved else { return }
         laneResolved = true
 
-        // A spot just before the turn identifies the road you're on and which way you travel along it.
-        let spot = route.position(atOffset: end - 20)
-        lanes = OSMLanes.guidance(
-            from: corridorStore.corridor.ways, at: spot.coordinate, travelBearing: spot.bearing,
-            maneuver: refinedManeuver ?? s.nextManeuver
-        )
+        // A spot just before the turn identifies the road you're on and which way you travel along it. Mappers often split
+        // the approach into short ways near the intersection, so try a few distances before the turn.
+        for back in [20.0, 45.0, 80.0] where lanes == nil {
+            let spot = route.position(atOffset: max(0, end - back))
+            lanes = OSMLanes.guidance(
+                from: corridorStore.corridor.ways, at: spot.coordinate, travelBearing: spot.bearing,
+                maneuver: refinedManeuver ?? s.nextManeuver
+            )
+        }
         lanePaint = lanes.flatMap { LanePainter.paint(route: route, maneuverOffset: end, guidance: $0) }
+        laneDiagnostic = (lanes == nil ? "Lanes: none tagged for this turn. " : "Lanes: found for this turn. ") + corridorStore.summary
     }
 
     private func handle(_ loc: CLLocation, simulated: Bool) {

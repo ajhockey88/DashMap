@@ -10,6 +10,12 @@ enum Overpass {
     ]
 
     static func run(_ query: String, timeout: TimeInterval = 8) async -> Data? {
+        await runDetailed(query, timeout: timeout).data
+    }
+
+    /// Like `run`, but says what went wrong (last server tried) when it fails, for the on-screen diagnostics.
+    static func runDetailed(_ query: String, timeout: TimeInterval = 8) async -> (data: Data?, failure: String?) {
+        var failure: String?
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
         for endpoint in endpoints {
             guard let url = URL(string: endpoint) else { continue }
@@ -20,12 +26,16 @@ enum Overpass {
             request.setValue("DashMap/1.0 (iOS navigation app)", forHTTPHeaderField: "User-Agent")
             request.httpBody = Data("data=\(encoded)".utf8)
 
-            if let (data, response) = try? await URLSession.shared.data(for: request),
-               (response as? HTTPURLResponse)?.statusCode == 200 {
-                return data
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                if code == 200 { return (data, nil) }
+                failure = "\(url.host ?? "server") answered \(code)"
+            } catch {
+                failure = "\(url.host ?? "server"): \(error.localizedDescription)"
             }
-            if Task.isCancelled { return nil }
+            if Task.isCancelled { return (nil, failure) }
         }
-        return nil
+        return (nil, failure)
     }
 }

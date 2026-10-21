@@ -10,6 +10,16 @@ final class CorridorStore {
     private var task: Task<Void, Never>?
     private var retryAfter = Date.distantPast
     private var generation = 0
+    /// Why the last download failed, if it did (shown in the simulated-drive diagnostics).
+    private(set) var lastFailure: String?
+
+    var summary: String {
+        let km = Int(loadedUpTo / 1000)
+        let laneRoads = corridor.ways.filter { $0.tags.keys.contains { $0.hasPrefix("turn:lanes") } }.count
+        var text = "Map data: \(km) km, \(corridor.ways.count) roads, \(laneRoads) with lane tags."
+        if let lastFailure { text += " Last download failed: \(lastFailure)." }
+        return text
+    }
 
     static let chunk = 5_000.0        // meters of route per request (small enough for busy cities not to time out)
     static let lookahead = 8_000.0    // stay at least this far ahead of the car
@@ -21,6 +31,7 @@ final class CorridorStore {
         corridor = Corridor()
         loadedUpTo = 0
         retryAfter = .distantPast
+        lastFailure = nil
     }
 
     /// True once the data for the route up to `offset` has been downloaded.
@@ -38,13 +49,15 @@ final class CorridorStore {
         let gen = generation
         task = Task {
             let query = OSMCorridor.query(for: route, from: from, to: to)
-            let data = await Overpass.run(query, timeout: 30)
+            let result = await Overpass.runDetailed(query, timeout: 30)
             guard gen == generation else { return }   // the route changed while downloading
             task = nil
-            guard let data, let part = OSMCorridor.parse(data) else {
+            guard let data = result.data, let part = OSMCorridor.parse(data) else {
+                lastFailure = result.failure ?? "server was overloaded"
                 retryAfter = Date().addingTimeInterval(15)
                 return
             }
+            lastFailure = nil
             corridor.merge(part)
             loadedUpTo = to
         }

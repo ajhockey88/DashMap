@@ -49,7 +49,10 @@ struct DrivingMap: UIViewRepresentable {
         let c = context.coordinator
         c.syncOverlays(map, route: route, state: state)
         c.syncLanes(map, paint: lanePaint)
-        guard let car else { return }
+        guard let car else {
+            c.showRouteStart(map, route: route)
+            return
+        }
         c.syncCar(map, at: car, heading: heading)
         if following {
             c.follow(map, car: car, heading: heading, speed: speed, distanceToManeuver: state?.distanceToManeuver)
@@ -64,6 +67,7 @@ struct DrivingMap: UIViewRepresentable {
         private var laneOverlays: [MKOverlay] = []
         private var laneKey = ""
         private var carAnnotation: CarAnnotation?
+        private var shownStart = false
         private var distance = 650.0   // camera distance in meters, eased toward a speed-based target
 
         init(style: Style, following: Binding<Bool>) {
@@ -80,6 +84,13 @@ struct DrivingMap: UIViewRepresentable {
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 
         // MARK: Camera
+
+        /// Until the first fix arrives the map would sit on its default whole-country view; start on the route instead.
+        func showRouteStart(_ map: MKMapView, route: Route?) {
+            guard !shownStart, let start = route?.mapCoordinates.first else { return }
+            shownStart = true
+            map.camera = MKMapCamera(lookingAtCenter: start, fromDistance: distance, pitch: 0, heading: 0)
+        }
 
         func follow(_ map: MKMapView, car: Coordinate, heading: Double, speed: Double, distanceToManeuver: Double?) {
             guard map.bounds.width > 0 else { return }

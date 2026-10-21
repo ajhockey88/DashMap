@@ -23,8 +23,8 @@ final class CorridorStore {
         return text
     }
 
-    static let chunk = 5_000.0        // meters of route per request (small enough for busy cities not to time out)
-    static let firstChunk = 2_000.0   // the first request is smaller so it finishes fast
+    static let chunk = 3_000.0        // meters of route per request (small enough for busy cities not to time out)
+    static let firstChunk = 1_000.0   // the first request is smaller so it finishes fast
     static let lookahead = 8_000.0    // stay at least this far ahead of the car
 
     func reset() {
@@ -54,12 +54,12 @@ final class CorridorStore {
         startedAt = Date()
         task = Task {
             let query = OSMCorridor.query(for: route, from: from, to: to)
-            let result = await Overpass.runDetailed(query, timeout: 30)
+            let result = await Overpass.runDetailed(query, timeout: 12)
             guard gen == generation else { return }   // the route changed while downloading
             task = nil
             guard let data = result.data, let part = OSMCorridor.parse(data) else {
                 lastFailure = result.failure ?? "server was overloaded"
-                retryAfter = Date().addingTimeInterval(15)
+                retryAfter = Date().addingTimeInterval(3)
                 return
             }
             lastFailure = nil

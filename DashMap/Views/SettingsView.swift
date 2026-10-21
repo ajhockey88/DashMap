@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage("nav.hud") private var startInHUD = false
     @AppStorage("hud.style") private var hudStyle = "arrows"
     @AppStorage("hud.mirrored") private var mirrored = true
+    @AppStorage("hud.flipped") private var flipped = false
     @AppStorage(Voice.voiceKey) private var voiceID = ""
     @AppStorage(Voice.rateKey) private var voiceRate = Voice.defaultRate
     @State private var previewVoice = Voice()
@@ -71,10 +72,11 @@ struct SettingsView: View {
                         Text("Moving map").tag("map")
                     }
                     Toggle("Mirror HUD for windshield", isOn: $mirrored)
+                    Toggle("HUD upside down", isOn: $flipped)
                 } header: {
                     Text("Display")
                 } footer: {
-                    Text("Lay the phone flat on the dashboard, screen up, with mirroring on. Turn mirroring off to read the HUD directly.")
+                    Text("Lay the phone flat on the dashboard, screen up, with mirroring on. Turn mirroring off to read the HUD directly. Upside down turns the whole HUD 180° so the phone can lie with its charger end toward you.")
                 }
                 Section("About") {
                     Text("Lane guidance, road names and speed limits use OpenStreetMap data where it has been mapped. © OpenStreetMap contributors.")

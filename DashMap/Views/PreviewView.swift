@@ -113,7 +113,7 @@ struct PreviewView: View {
                     .font(.caption2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: 170)
+                .frame(maxHeight: 260)
             }
             .font(.subheadline)
             .foregroundStyle(Theme.secondary)

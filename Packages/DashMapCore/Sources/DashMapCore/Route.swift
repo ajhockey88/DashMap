@@ -125,7 +125,7 @@ extension Route {
 
     /// Makes each turn agree with the line the car actually follows. If a step says left but the route geometry at that
     /// point clearly turns right (or the reverse), the geometry wins: the arrow, the spoken words and the road all match.
-    static func alignTurns(_ steps: inout [RouteStep], polyline: [Coordinate], cumulative: [Double], window: Double = 30, minimumAngle: Double = 40) {
+    static func alignTurns(_ steps: inout [RouteStep], polyline: [Coordinate], cumulative: [Double], window: Double = 30, minimumAngle: Double = 60) {
         func point(at offset: Double) -> Coordinate {
             let d = min(max(offset, 0), cumulative[cumulative.count - 1])
             var lo = 0, hi = cumulative.count - 2
@@ -242,7 +242,8 @@ extension Route {
             guard Geo.distance(before, here) > 5, Geo.distance(here, after) > 5 else { return nil }
             return Geo.turnAngle(before: Geo.bearing(from: before, to: here), after: Geo.bearing(from: here, to: after))
         }
-        let limit = min(200, first.endOffset)
+        // Corners from the end of the first step belong to the next turn, not to this one.
+        let limit = min(200, first.endOffset - 30)
         var boundary = min(10, first.endOffset / 2)
         var d = 5.0
         while d < limit {
@@ -318,6 +319,18 @@ extension Maneuver {
         if t.contains("merge") { return .merge }
         if t.contains("u-turn") { return isLeft ? .uturnLeft : .uturnRight }
         if t.contains("ferry") { return .ferry }
+        // A heading change can't be measured for the first step (there is no step before it), and a gentle bend can read as
+        // straight; when the words name a side, they decide.
+        if !fallback.rawValue.contains("LEFT"), !fallback.rawValue.contains("RIGHT"), fallback != .arrive {
+            let left = t.range(of: "\\bleft\\b", options: .regularExpression) != nil
+            let right = t.range(of: "\\bright\\b", options: .regularExpression) != nil
+            if left != right {
+                let slight = t.contains("slight") || t.contains("bear") || t.contains("keep")
+                let sharp = t.contains("sharp")
+                if left { return slight ? .turnSlightLeft : sharp ? .turnSharpLeft : .turnLeft }
+                return slight ? .turnSlightRight : sharp ? .turnSharpRight : .turnRight
+            }
+        }
         return fallback
     }
 }

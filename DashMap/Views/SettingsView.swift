@@ -11,7 +11,8 @@ struct SettingsView: View {
     @AppStorage(Voice.voiceKey) private var voiceID = ""
     @AppStorage(Voice.rateKey) private var voiceRate = Voice.defaultRate
     @State private var previewVoice = Voice()
-    private let voices = Voice.availableVoices()
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var voices = Voice.naturalVoices()
 
     private func label(for v: AVSpeechSynthesisVoice) -> String {
         switch v.quality {
@@ -34,10 +35,18 @@ struct SettingsView: View {
                 }
                 Section {
                     Toggle("Voice guidance", isOn: $session.voiceEnabled)
-                    Picker("Voice", selection: $voiceID) {
-                        Text("Best available").tag("")
-                        ForEach(voices, id: \.identifier) { v in
-                            Text(label(for: v)).tag(v.identifier)
+                    if voices.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Get a natural voice (free)", systemImage: "waveform").font(.headline)
+                            Text("1. Open the iPhone Settings app.\n2. Go to Accessibility, then Spoken Content, then Voices.\n3. Pick your language and download a Premium or Enhanced voice (for example Ava, Zoe or Evan).\n4. Come back here and it appears in this list.")
+                                .font(.footnote).foregroundStyle(Theme.secondary)
+                        }
+                    } else {
+                        Picker("Voice", selection: $voiceID) {
+                            Text("Best available").tag("")
+                            ForEach(voices, id: \.identifier) { v in
+                                Text(label(for: v)).tag(v.identifier)
+                            }
                         }
                     }
                     HStack {
@@ -50,7 +59,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Guidance")
                 } footer: {
-                    Text("For a more natural voice, download an Enhanced or Premium one in the iPhone Settings app under Accessibility, Spoken Content, Voices. It then shows up in this list.")
+                    Text("Premium and Enhanced voices are neural, free and work offline. Download more in Settings, Accessibility, Spoken Content, Voices.")
                 }
                 Section {
                     Picker("Start with", selection: $startInHUD) {
@@ -74,6 +83,9 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background)
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { voices = Voice.naturalVoices() }   // pick up a voice downloaded in Settings
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("Done") { dismiss() } }

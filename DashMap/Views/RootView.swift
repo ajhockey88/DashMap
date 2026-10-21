@@ -41,7 +41,15 @@ struct RootView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack {
-                    Text("Where to?").font(.largeTitle.bold())
+                    Image("BrandIcon")
+                        .resizable()
+                        .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("DashMap").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.secondary)
+                        Text("Where to?").font(.largeTitle.bold())
+                    }
                     Spacer()
                     IconButton(systemName: "gearshape.fill", label: "Settings") { showSettings = true }
                 }
@@ -51,6 +59,7 @@ struct RootView: View {
 
                 if query.trimmingCharacters(in: .whitespaces).isEmpty {
                     shortcuts
+                    savedPlaces
                     recents
                 } else {
                     results
@@ -109,15 +118,34 @@ struct RootView: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder private var savedPlaces: some View {
+        if !places.saved.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Saved").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.secondary)
+                ForEach(places.saved) { place in
+                    Button { go(place.mapItem) } label: {
+                        row(icon: "star.fill", title: place.name, subtitle: place.subtitle)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Set as Home", systemImage: "house") { places.setHome(place) }
+                        Button("Set as Work", systemImage: "briefcase") { places.setWork(place) }
+                        Button("Remove from Saved", systemImage: "star.slash", role: .destructive) { places.removeSaved(place) }
+                    }
+                }
+            }
+        }
+    }
+
     @ViewBuilder private var recents: some View {
-        if places.recents.isEmpty {
+        if places.recents.isEmpty && places.saved.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: "location.north.line.fill").font(.largeTitle).foregroundStyle(Theme.accent)
                 Text("Search for a destination to start.").foregroundStyle(Theme.secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
-        } else {
+        } else if !places.recents.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Recent").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.secondary)
                 ForEach(places.recents) { place in
@@ -126,12 +154,17 @@ struct RootView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
+                        if places.isSaved(place) {
+                            Button("Remove from Saved", systemImage: "star.slash") { places.removeSaved(place) }
+                        } else {
+                            Button("Save", systemImage: "star") { places.addSaved(place) }
+                        }
                         Button("Set as Home", systemImage: "house") { places.setHome(place) }
                         Button("Set as Work", systemImage: "briefcase") { places.setWork(place) }
                         Button("Remove", systemImage: "trash", role: .destructive) { places.remove(place) }
                     }
                 }
-                Text("Touch and hold a place to set it as Home or Work.")
+                Text("Touch and hold a place to save it or set it as Home or Work.")
                     .font(.footnote).foregroundStyle(Theme.secondary).padding(.top, 4)
             }
         }
@@ -149,6 +182,14 @@ struct RootView: View {
                     row(icon: "mappin", title: result.title, subtitle: result.subtitle)
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button("Save", systemImage: "star") {
+                        Task {
+                            guard let item = try? await search.resolve(result) else { return }
+                            places.addSaved(SavedPlace(item: item))
+                        }
+                    }
+                }
             }
         }
     }

@@ -80,11 +80,54 @@ public struct Route: Equatable, Sendable {
             steps[i].duration *= tScale
         }
 
+        Self.alignTurns(&steps, polyline: polyline, cumulative: cum)
+
         self.polyline = polyline
         self.cumulative = cum
         self.segmentBearings = (0..<(polyline.count - 1)).map { Geo.bearing(from: polyline[$0], to: polyline[$0 + 1]) }
         self.steps = steps
         self.duration = duration
+    }
+}
+
+extension Route {
+    /// Makes each turn agree with the line the car actually follows. If a step says left but the route geometry at that
+    /// point clearly turns right (or the reverse), the geometry wins: the arrow, the spoken words and the road all match.
+    static func alignTurns(_ steps: inout [RouteStep], polyline: [Coordinate], cumulative: [Double], window: Double = 30, minimumAngle: Double = 40) {
+        func point(at offset: Double) -> Coordinate {
+            let d = min(max(offset, 0), cumulative[cumulative.count - 1])
+            var lo = 0, hi = cumulative.count - 2
+            while lo < hi {
+                let mid = (lo + hi + 1) / 2
+                if cumulative[mid] <= d { lo = mid } else { hi = mid - 1 }
+            }
+            let length = cumulative[lo + 1] - cumulative[lo]
+            let t = length > 0 ? (d - cumulative[lo]) / length : 0
+            let a = polyline[lo], b = polyline[lo + 1]
+            return Coordinate(latitude: a.latitude + (b.latitude - a.latitude) * t, longitude: a.longitude + (b.longitude - a.longitude) * t)
+        }
+        let turns: Set<Maneuver> = [.turnSlightLeft, .turnLeft, .turnSharpLeft, .turnSlightRight, .turnRight, .turnSharpRight]
+        for i in steps.indices.dropFirst() where turns.contains(steps[i].maneuver) {
+            let at = steps[i].startOffset
+            let before = point(at: at - window), here = point(at: at), after = point(at: at + window)
+            guard Geo.distance(before, here) > 5, Geo.distance(here, after) > 5 else { continue }
+            let angle = Geo.turnAngle(before: Geo.bearing(from: before, to: here), after: Geo.bearing(from: here, to: after))
+            guard abs(angle) >= minimumAngle else { continue }
+            let geometryIsRight = angle > 0
+            let statedIsRight = steps[i].maneuver.rawValue.contains("RIGHT")
+            guard geometryIsRight != statedIsRight else { continue }
+            steps[i].maneuver = Maneuver.classify(turnAngle: angle)
+            steps[i].instruction = swapSide(in: steps[i].instruction)
+        }
+    }
+
+    /// "Turn right onto Elm St" becomes "Turn left onto Elm St" (first whole word only, keeping capitalization).
+    static func swapSide(in text: String) -> String {
+        guard let range = text.range(of: "\\b(left|right)\\b", options: [.regularExpression, .caseInsensitive]) else { return text }
+        let word = String(text[range])
+        let swapped = word.lowercased() == "left" ? "right" : "left"
+        let replacement = word.first?.isUppercase == true ? swapped.prefix(1).uppercased() + swapped.dropFirst() : swapped
+        return text.replacingCharacters(in: range, with: replacement)
     }
 }
 

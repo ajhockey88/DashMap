@@ -200,6 +200,23 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertFalse(q.contains("around"), "an around search over a long polyline times out on public servers")
     }
 
+    func testTurnDirectionFollowsTheRouteGeometry() {
+        // Northbound for 1.1 km, then west (a left turn), but the step claims a right turn.
+        var pts = (0...10).map { Coordinate(latitude: 40 + Double($0) * 0.001, longitude: -100) }
+        pts += (1...10).map { Coordinate(latitude: 40.010, longitude: -100 - Double($0) * 0.001 * 1.3) }
+        let first = Geo.distance(pts[0], pts[10])
+        let len = Route(polyline: pts, steps: [], duration: 0)!.distance
+        let route = Route(polyline: pts, steps: [
+            RouteStep(instruction: "Head north", maneuver: .straight, distance: first, duration: 60),
+            RouteStep(instruction: "Turn right onto Elm St", maneuver: .turnRight, distance: len - first, duration: 60),
+        ], duration: 120)!
+        XCTAssertEqual(route.steps[1].maneuver, .turnLeft)
+        XCTAssertEqual(route.steps[1].instruction, "Turn left onto Elm St")
+        // A correct label is left alone.
+        XCTAssertEqual(makeRoute().steps[1].maneuver, .turnRight)
+        XCTAssertEqual(makeRoute().steps[1].instruction, "Turn right onto Elm St")
+    }
+
     func testOverpassRuntimeErrorIsAFailureNotAnEmptyCorridor() {
         let json = #"{"elements":[],"remark":"runtime error: Query timed out in \"query\" at line 1 after 31 seconds."}"#
         XCTAssertNil(OSMCorridor.parse(Data(json.utf8)))

@@ -52,6 +52,8 @@ final class NavigationSession: ObservableObject {
     private var ticker: Task<Void, Never>?
 
     private let corridorStore = CorridorStore()
+    /// The route the corridor store holds road data for.
+    private var corridorRoute: Route?
     private var smoother = PositionSmoother()
     private var laneStep = -1, laneResolved = false
     private var roadStep = -1, roadResolved = false
@@ -113,6 +115,7 @@ final class NavigationSession: ObservableObject {
             routes = try await MapKitRouter.routes(from: here.coordinate2D, to: destination)
             selectedRouteIndex = 0
             route = routes[0]
+            prefetchCorridor(for: routes[0])
             phase = .preview
         } catch {
             errorMessage = error.localizedDescription
@@ -124,6 +127,16 @@ final class NavigationSession: ObservableObject {
         guard routes.indices.contains(index) else { return }
         selectedRouteIndex = index
         route = routes[index]
+        prefetchCorridor(for: routes[index])
+    }
+
+    /// Starts downloading road data while the preview is on screen, so the first turns already have lanes when the drive begins.
+    private func prefetchCorridor(for route: Route) {
+        if corridorRoute != route {
+            corridorStore.reset()
+            corridorRoute = route
+        }
+        corridorStore.ensure(route: route, progress: 0)
     }
 
     // MARK: Navigating
@@ -163,6 +176,8 @@ final class NavigationSession: ObservableObject {
         state = nil
         route = nil
         routes = []
+        corridorStore.reset()
+        corridorRoute = nil
         destination = nil
         gpsLost = false
         carPosition = nil
@@ -177,7 +192,10 @@ final class NavigationSession: ObservableObject {
         self.route = route
         engine = NavigationEngine(route: route)
         announcer = Announcer()
-        corridorStore.reset()
+        if corridorRoute != route {   // keep the data already downloaded during the preview
+            corridorStore.reset()
+            corridorRoute = route
+        }
         resetLanes()
     }
 

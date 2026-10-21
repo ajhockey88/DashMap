@@ -6,6 +6,7 @@ struct HUDView: View {
     @EnvironmentObject private var session: NavigationSession
     @Binding var hud: Bool
     @AppStorage("hud.mirrored") private var mirrored = true
+    @AppStorage("hud.flipped") private var flipped = false   // turned 180° so the phone can sit with its charger toward the driver
     @AppStorage("hud.style") private var style = "arrows"   // "arrows" or "map"
     @State private var following = true
     @AppStorage("units") private var unitsSetting = "auto"
@@ -25,6 +26,7 @@ struct HUDView: View {
 
             controls
         }
+        .rotationEffect(.degrees(flipped ? 180 : 0))
         .statusBarHidden(true)
         .onAppear {
             previousBrightness = UIScreen.main.brightness
@@ -166,6 +168,10 @@ struct HUDView: View {
                 Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
             }
             .accessibilityLabel(mirrored ? "Mirrored, tap for normal" : "Normal, tap to mirror")
+            Button { flipped.toggle() } label: {
+                Image(systemName: "arrow.up.arrow.down")
+            }
+            .accessibilityLabel(flipped ? "Upside down, tap for upright" : "Upright, tap to turn upside down")
             Button { style = style == "map" ? "arrows" : "map" } label: {
                 Image(systemName: style == "map" ? "map" : "arrow.up")
             }

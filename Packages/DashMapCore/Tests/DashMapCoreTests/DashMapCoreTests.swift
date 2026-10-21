@@ -241,6 +241,43 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(s.nextInstruction, "Turn right onto N Glebe Rd")
     }
 
+    func testTheRealRandolphToJonesBranchStepsKeepTheirOrder() {
+        // Apple Maps' first steps for 900 N Randolph St to 7918 Jones Branch Dr: an empty depart step (dropped), then
+        // Turn left onto Fairfax Dr (128 m), Turn right onto N Glebe Rd (550 m), slight left onto Old Dominion Dr.
+        // The first maneuver has no earlier step to compare with, so it comes from the words.
+        func step(_ text: String, _ meters: Double) -> RouteStep {
+            RouteStep(instruction: text, maneuver: Maneuver.fromInstruction(text, fallback: .straight), distance: meters, duration: 30)
+        }
+        let westLon = 128.0 / 85_276, northLat = 550.0 / 111_320
+        let p0 = Coordinate(latitude: 40, longitude: -100)
+        let p1 = Coordinate(latitude: 40, longitude: -100 - westLon)
+        let p2 = Coordinate(latitude: 40 + northLat, longitude: -100 - westLon)
+        let p3 = Coordinate(latitude: 40 + northLat + 906 / 111_320, longitude: -100 - westLon - 423 / 85_276)
+        let route = Route(polyline: [p0, p1, p2, p3], steps: [
+            step("Turn left onto Fairfax Dr", 128),
+            step("Turn right onto N Glebe Rd", 550),
+            step("Take a slight left turn onto Old Dominion Dr", 1_000),
+        ], duration: 100)!
+        XCTAssertEqual(route.steps.map(\.instruction), [
+            "Head west", "Turn left onto Fairfax Dr", "Turn right onto N Glebe Rd", "Take a slight left turn onto Old Dominion Dr",
+        ])
+        XCTAssertEqual(route.steps[2].startOffset, 128, accuracy: 2)
+        XCTAssertEqual(route.steps[3].startOffset, 678, accuracy: 4)
+        let engine = NavigationEngine(route: route)
+        XCTAssertEqual(engine.update(location: p0).nextInstruction, "Turn left onto Fairfax Dr", "the first turn is announced, not assumed")
+        let onFairfax = engine.update(location: route.position(atOffset: 100).coordinate)
+        XCTAssertEqual(onFairfax.nextInstruction, "Turn right onto N Glebe Rd")
+        XCTAssertEqual(onFairfax.distanceToManeuver, 28, accuracy: 4)
+    }
+
+    func testSideWordsDecideAManeuverThatHasNothingToCompareWith() {
+        XCTAssertEqual(Maneuver.fromInstruction("Turn left onto Fairfax Dr", fallback: .straight), .turnLeft)
+        XCTAssertEqual(Maneuver.fromInstruction("Take a slight left turn onto Old Dominion Dr", fallback: .straight), .turnSlightLeft)
+        XCTAssertEqual(Maneuver.fromInstruction("Turn right onto N Glebe Rd", fallback: .straight), .turnRight)
+        XCTAssertEqual(Maneuver.fromInstruction("Head north on Main St", fallback: .straight), .straight)
+        XCTAssertEqual(Maneuver.fromInstruction("Turn left onto X", fallback: .turnRight), .turnRight, "a measured heading change is kept")
+    }
+
     func testACornerMissingFromTheStepsGetsATurnOfItsOwn() {
         // North for ~550 m, a left turn to the west for ~550 m, then a right turn north again.
         var pts = (0...5).map { Coordinate(latitude: 40 + Double($0) * 0.001, longitude: -100) }

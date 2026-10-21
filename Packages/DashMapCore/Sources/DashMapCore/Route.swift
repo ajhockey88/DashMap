@@ -81,6 +81,7 @@ public struct Route: Equatable, Sendable {
         }
 
         Self.alignTurns(&steps, polyline: polyline, cumulative: cum)
+        Self.neutralizeStart(&steps, polyline: polyline)
 
         self.polyline = polyline
         self.cumulative = cum
@@ -119,6 +120,21 @@ extension Route {
             steps[i].maneuver = Maneuver.classify(turnAngle: angle)
             steps[i].instruction = swapSide(in: steps[i].instruction)
         }
+    }
+
+    /// Apple Maps plans from a bare coordinate, so a "turn left/right" as the very first step assumes a heading the car may not have.
+    /// Say which way the route heads off instead ("Head south on N Glebe Rd") and leave the side to the road itself.
+    static func neutralizeStart(_ steps: inout [RouteStep], polyline: [Coordinate]) {
+        let turns: Set<Maneuver> = [.turnSlightLeft, .turnLeft, .turnSharpLeft, .turnSlightRight, .turnRight, .turnSharpRight]
+        guard let first = steps.first, turns.contains(first.maneuver), polyline.count >= 2 else { return }
+        let far = polyline.dropFirst().first { Geo.distance(polyline[0], $0) >= 15 } ?? polyline[polyline.count - 1]
+        let bearing = (Geo.bearing(from: polyline[0], to: far).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+        let names = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
+        let direction = names[Int((bearing + 22.5) / 45) % 8]
+        var text = "Head \(direction)"
+        if let range = first.instruction.range(of: " onto ") { text += " on " + first.instruction[range.upperBound...] }
+        steps[0].instruction = text
+        steps[0].maneuver = .straight
     }
 
     /// "Your destination is on the left" is corrected from where the destination point really lies relative to the end of the

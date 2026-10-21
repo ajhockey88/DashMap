@@ -27,6 +27,7 @@ enum MapKitRouter {
         let polyline = coordinates(of: mk.polyline)
         var steps: [RouteStep] = []
         var previousHeading: Double?
+        let appleSteps = mk.steps.map { "\(Int($0.distance)) m · \($0.instructions.isEmpty ? "(no text)" : $0.instructions)" }
 
         for step in mk.steps {
             let pts = coordinates(of: step.polyline)
@@ -65,7 +66,9 @@ enum MapKitRouter {
                 destination: Coordinate(latitude: destination.latitude, longitude: destination.longitude)
             )
         }
-        return Route(polyline: polyline, steps: steps, duration: mk.expectedTravelTime)
+        var route = Route(polyline: polyline, steps: steps, duration: mk.expectedTravelTime)
+        route?.appleSteps = appleSteps
+        return route
     }
 
     private static func coordinates(of line: MKPolyline) -> [Coordinate] {

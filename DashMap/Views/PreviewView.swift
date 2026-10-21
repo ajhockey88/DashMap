@@ -71,6 +71,8 @@ struct PreviewView: View {
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
 
+            routeDetails
+
             Picker("Display", selection: $startInHUD) {
                 Text("Map").tag(false)
                 Text("HUD").tag(true)
@@ -88,6 +90,34 @@ struct PreviewView: View {
         .padding(16)
         .padding(.bottom, 8)
         .background(Theme.surface, in: UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
+    }
+
+    /// What Apple Maps returned, what the app made of it, and where the route line really turns; for finding step-order problems.
+    @ViewBuilder private var routeDetails: some View {
+        if session.routes.indices.contains(session.selectedRouteIndex) {
+            let route = session.routes[session.selectedRouteIndex]
+            DisclosureGroup("Route details") {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Apple Maps steps").bold()
+                        ForEach(Array(route.appleSteps.enumerated()), id: \.offset) { i, line in Text("\(i + 1). \(line)") }
+                        Text("Steps used (offset)").bold().padding(.top, 4)
+                        ForEach(Array(route.steps.enumerated()), id: \.offset) { i, step in
+                            Text("\(i + 1). \(Int(step.startOffset)) m · \(step.instruction)")
+                        }
+                        Text("Corners in the route line").bold().padding(.top, 4)
+                        ForEach(Array(route.geometryCorners().enumerated()), id: \.offset) { _, corner in
+                            Text("\(Int(corner.offset)) m · \(corner.angle > 0 ? "right" : "left") \(Int(abs(corner.angle)))°")
+                        }
+                    }
+                    .font(.caption2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 170)
+            }
+            .font(.subheadline)
+            .foregroundStyle(Theme.secondary)
+        }
     }
 
     private func arrival(_ secondsFromNow: Double) -> String {

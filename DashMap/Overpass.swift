@@ -7,7 +7,6 @@ enum Overpass {
         "https://overpass-api.de/api/interpreter",
         "https://overpass.kumi.systems/api/interpreter",
         "https://overpass.private.coffee/api/interpreter",
-        "https://overpass.openstreetmap.fr/api/interpreter",
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     ]
     /// A slow or hung server doesn't hold up the request: the next one is tried this many seconds later, in parallel.

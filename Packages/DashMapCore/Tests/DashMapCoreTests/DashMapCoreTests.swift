@@ -270,6 +270,28 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(onFairfax.distanceToManeuver, 28, accuracy: 4)
     }
 
+    func testAFirstTurnShortlyAfterTheStartIsNotSkippedWhileTheCarIsStillTurning() {
+        // North 20 m, then the left turn onto Fairfax and 300 m west, then a right turn north.
+        let northLat = 20.0 / 111_320, westLon = 300.0 / 85_276
+        let p0 = Coordinate(latitude: 40, longitude: -100)
+        let p1 = Coordinate(latitude: 40 + northLat, longitude: -100)
+        let p2 = Coordinate(latitude: 40 + northLat, longitude: -100 - westLon)
+        let p3 = Coordinate(latitude: 40 + northLat + 400 / 111_320, longitude: -100 - westLon)
+        func step(_ text: String, _ meters: Double) -> RouteStep {
+            RouteStep(instruction: text, maneuver: Maneuver.fromInstruction(text, fallback: .straight), distance: meters, duration: 30)
+        }
+        let route = Route(polyline: [p0, p1, p2, p3], steps: [
+            step("Turn left onto Fairfax Dr", 320),
+            step("Turn right onto N Glebe Rd", 400),
+        ], duration: 100)!
+        let engine = NavigationEngine(route: route)
+        XCTAssertEqual(engine.update(location: p0).nextInstruction, "Turn left onto Fairfax Dr")
+        let turning = engine.update(location: route.position(atOffset: 35).coordinate)
+        XCTAssertEqual(turning.nextInstruction, "Turn left onto Fairfax Dr", "the car is still making the first turn")
+        let onFairfax = engine.update(location: route.position(atOffset: 100).coordinate)
+        XCTAssertEqual(onFairfax.nextInstruction, "Turn right onto N Glebe Rd")
+    }
+
     func testSideWordsDecideAManeuverThatHasNothingToCompareWith() {
         XCTAssertEqual(Maneuver.fromInstruction("Turn left onto Fairfax Dr", fallback: .straight), .turnLeft)
         XCTAssertEqual(Maneuver.fromInstruction("Take a slight left turn onto Old Dominion Dr", fallback: .straight), .turnSlightLeft)

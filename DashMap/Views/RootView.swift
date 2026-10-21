@@ -41,7 +41,15 @@ struct RootView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack {
-                    Text("Where to?").font(.largeTitle.bold())
+                    Image("BrandIcon")
+                        .resizable()
+                        .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("DashMap").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.secondary)
+                        Text("Where to?").font(.largeTitle.bold())
+                    }
                     Spacer()
                     IconButton(systemName: "gearshape.fill", label: "Settings") { showSettings = true }
                 }

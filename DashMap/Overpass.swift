@@ -7,9 +7,11 @@ enum Overpass {
         "https://overpass-api.de/api/interpreter",
         "https://overpass.kumi.systems/api/interpreter",
         "https://overpass.private.coffee/api/interpreter",
+        "https://overpass.openstreetmap.fr/api/interpreter",
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     ]
     /// A slow or hung server doesn't hold up the request: the next one is tried this many seconds later, in parallel.
-    private static let stagger = 4.0
+    private static let stagger = 3.0
 
     static func run(_ query: String, timeout: TimeInterval = 8) async -> Data? {
         await runDetailed(query, timeout: timeout).data
@@ -25,15 +27,16 @@ enum Overpass {
                     return await request(endpoint, query, timeout)
                 }
             }
-            var failure: String?
+            var failures: [String] = []
             for await result in group {
                 if let data = result.0 {
                     group.cancelAll()   // the first good answer wins
                     return (data, nil)
                 }
-                failure = result.1 ?? failure
+                if let reason = result.1 { failures.append(reason) }
             }
-            return (nil, failure)
+            // Every server's reason, so the on-screen diagnostics show which ones failed and why.
+            return (nil, failures.isEmpty ? nil : failures.joined(separator: "; "))
         }
     }
 
@@ -54,7 +57,7 @@ enum Overpass {
             if data.range(of: Data("runtime error".utf8)) != nil { return (nil, "\(url.host ?? "server") timed out") }
             return (data, nil)
         } catch {
-            return (nil, "\(url.host ?? "server"): \(error.localizedDescription)")
+            return (nil, "\(url.host ?? "server"): \((error as NSError).code) \(error.localizedDescription)")
         }
     }
 }

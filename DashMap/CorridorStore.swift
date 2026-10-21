@@ -23,8 +23,8 @@ final class CorridorStore {
         return text
     }
 
-    static let chunk = 5_000.0        // meters of route per request (small enough for busy cities not to time out)
-    static let firstChunk = 2_000.0   // the first request is smaller so it finishes fast
+    static let chunk = 3_000.0        // meters of route per request (small enough for busy cities not to time out)
+    static let firstChunk = 1_000.0   // the first request is smaller so it finishes fast
     static let lookahead = 8_000.0    // stay at least this far ahead of the car
 
     func reset() {

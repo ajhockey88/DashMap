@@ -19,6 +19,11 @@ final class Voice {
             }
     }
 
+    /// Only the downloaded Enhanced and Premium voices: these are the natural, neural ones.
+    static func naturalVoices() -> [AVSpeechSynthesisVoice] {
+        availableVoices().filter { $0.quality != .default }
+    }
+
     private var chosenVoice: AVSpeechSynthesisVoice? {
         if let id = UserDefaults.standard.string(forKey: Voice.voiceKey), let v = AVSpeechSynthesisVoice(identifier: id) { return v }
         // No choice made: use the most natural installed voice (Premium, then Enhanced) over the robotic default.

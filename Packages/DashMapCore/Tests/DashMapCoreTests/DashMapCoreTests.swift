@@ -217,6 +217,16 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(makeRoute().steps[1].instruction, "Turn right onto Elm St")
     }
 
+    func testFirstStepTurnIsReplacedByAHeading() {
+        // Heads due south; Apple Maps' "Turn right onto N Glebe Rd" as step one assumes a heading the car may not have.
+        let pts = (0...10).map { Coordinate(latitude: 40 - Double($0) * 0.001, longitude: -100) }
+        let route = Route(polyline: pts, steps: [
+            RouteStep(instruction: "Turn right onto N Glebe Rd", maneuver: .turnRight, distance: 1_100, duration: 60),
+        ], duration: 60)!
+        XCTAssertEqual(route.steps[0].instruction, "Head south on N Glebe Rd")
+        XCTAssertEqual(route.steps[0].maneuver, .straight)
+    }
+
     func testArrivalSideIsCheckedAgainstTheDestinationPoint() {
         let end = Coordinate(latitude: 40, longitude: -100)
         let eastOfEnd = Coordinate(latitude: 40, longitude: -100 + 0.0003)   // ~25 m east; heading north, that is the right side

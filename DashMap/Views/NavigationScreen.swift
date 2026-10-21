@@ -41,6 +41,14 @@ private struct MapNavView: View {
                 VStack(spacing: 0) {
                     banner
                     Spacer()
+                    if session.isSimulating, !session.laneDiagnostic.isEmpty {
+                        Text(session.laneDiagnostic)
+                            .font(.caption2)
+                            .padding(8)
+                            .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 6)
+                    }
                     HStack(alignment: .bottom, spacing: 10) {
                         speedBadge
                         if let kph = session.roadInfo?.speedLimitKph {

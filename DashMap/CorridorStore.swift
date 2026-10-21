@@ -54,7 +54,7 @@ final class CorridorStore {
         startedAt = Date()
         task = Task {
             let query = OSMCorridor.query(for: route, from: from, to: to)
-            let result = await Overpass.runDetailed(query, timeout: 12)
+            let result = await Overpass.runDetailed(query, timeout: 18)
             guard gen == generation else { return }   // the route changed while downloading
             task = nil
             guard let data = result.data, let part = OSMCorridor.parse(data) else {

@@ -63,7 +63,9 @@ public struct Corridor: Sendable {
 }
 
 public enum OSMCorridor {
-    static let roadFilter = "[highway~\"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|living_street|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$\"]"
+    /// Selects by the plain `highway` key (served from the spatial index) and drops footpaths and the like afterwards.
+    /// A positive regex over the road types made the public servers time out in dense cities.
+    static let roadFilter = "[highway][highway!~\"^(footway|path|steps|cycleway|pedestrian|track|bridleway|corridor|elevator|platform|proposed|construction|raceway|bus_guideway|escape)$\"]"
 
     /// Overpass QL for roads and exit junctions along the stretch of `route` between two offsets (meters).
     /// Uses a chain of small bounding boxes: that is served from the spatial index and answers in a second or two,
@@ -89,7 +91,7 @@ public enum OSMCorridor {
             statements.append("way\(roadFilter)(\(box));node[highway=motorway_junction](\(box));")
             i += samplesPerBox
         }
-        return "[out:json][timeout:25];(\(statements.joined()));out tags geom;"
+        return "[out:json][timeout:15];(\(statements.joined()));out tags geom qt;"
     }
 
     public static func parse(_ data: Data) -> Corridor? {

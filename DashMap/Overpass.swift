@@ -11,7 +11,7 @@ enum Overpass {
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     ]
     /// A slow or hung server doesn't hold up the request: the next one is tried this many seconds later, in parallel.
-    private static let stagger = 3.0
+    private static let stagger = 1.0
 
     static func run(_ query: String, timeout: TimeInterval = 8) async -> Data? {
         await runDetailed(query, timeout: timeout).data

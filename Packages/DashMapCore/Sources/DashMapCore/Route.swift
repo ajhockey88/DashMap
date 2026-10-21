@@ -81,6 +81,7 @@ public struct Route: Equatable, Sendable {
         }
 
         Self.alignTurns(&steps, polyline: polyline, cumulative: cum)
+        Self.insertMissedTurns(&steps, polyline: polyline, cumulative: cum)
         Self.neutralizeStart(&steps, polyline: polyline)
 
         self.polyline = polyline
@@ -119,6 +120,67 @@ extension Route {
             guard geometryIsRight != statedIsRight else { continue }
             steps[i].maneuver = Maneuver.classify(turnAngle: angle)
             steps[i].instruction = swapSide(in: steps[i].instruction)
+        }
+    }
+
+    /// Apple Maps sometimes leaves a real corner out of its step list (for example the first turn out of a driveway or side street).
+    /// Left alone, every later instruction then lands one turn too early. A sharp corner in the route line with no step near it
+    /// gets a plain "Turn left" / "Turn right" step of its own.
+    static func insertMissedTurns(_ steps: inout [RouteStep], polyline: [Coordinate], cumulative: [Double], window: Double = 25, minimumAngle: Double = 70, tolerance: Double = 60) {
+        guard let length = cumulative.last, length > 4 * window else { return }
+        func point(at offset: Double) -> Coordinate {
+            let d = min(max(offset, 0), length)
+            var lo = 0, hi = cumulative.count - 2
+            while lo < hi {
+                let mid = (lo + hi + 1) / 2
+                if cumulative[mid] <= d { lo = mid } else { hi = mid - 1 }
+            }
+            let seg = cumulative[lo + 1] - cumulative[lo]
+            let t = seg > 0 ? (d - cumulative[lo]) / seg : 0
+            let a = polyline[lo], b = polyline[lo + 1]
+            return Coordinate(latitude: a.latitude + (b.latitude - a.latitude) * t, longitude: a.longitude + (b.longitude - a.longitude) * t)
+        }
+        func angle(at offset: Double) -> Double? {
+            let before = point(at: offset - window), here = point(at: offset), after = point(at: offset + window)
+            guard Geo.distance(before, here) > 5, Geo.distance(here, after) > 5 else { return nil }
+            return Geo.turnAngle(before: Geo.bearing(from: before, to: here), after: Geo.bearing(from: here, to: after))
+        }
+        var found: [(offset: Double, angle: Double)] = []
+        var d = window
+        while d < length - window {
+            if let a = angle(at: d), abs(a) >= minimumAngle, abs(a) < 170,
+               !steps.contains(where: { abs($0.startOffset - d) < tolerance }) {
+                // Take the sharpest point of this corner.
+                var best = (offset: d, angle: a)
+                var e = d
+                while e < d + window, e < length - window {
+                    if let b = angle(at: e), abs(b) > abs(best.angle) { best = (e, b) }
+                    e += 5
+                }
+                found.append(best)
+                d = best.offset + tolerance
+            } else {
+                d += 5
+            }
+        }
+        for corner in found {
+            guard let i = steps.lastIndex(where: { $0.startOffset <= corner.offset }) else { continue }
+            let maneuver = Maneuver.classify(turnAngle: corner.angle)
+            let right = corner.angle > 0
+            let text: String
+            switch maneuver {
+            case .turnSharpLeft, .turnSharpRight: text = "Make a sharp \(right ? "right" : "left")"
+            default: text = "Turn \(right ? "right" : "left")"
+            }
+            let whole = steps[i].endOffset - steps[i].startOffset
+            let share = whole > 0 ? (steps[i].endOffset - corner.offset) / whole : 0
+            var added = RouteStep(instruction: text, maneuver: maneuver, distance: steps[i].distance * share, duration: steps[i].duration * share)
+            added.startOffset = corner.offset
+            added.endOffset = steps[i].endOffset
+            steps[i].distance -= added.distance
+            steps[i].duration -= added.duration
+            steps[i].endOffset = corner.offset
+            steps.insert(added, at: i + 1)
         }
     }
 

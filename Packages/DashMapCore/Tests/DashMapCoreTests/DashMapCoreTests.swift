@@ -238,6 +238,24 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(route.steps[0].maneuver, .straight)
     }
 
+    func testACornerMissingFromTheStepsGetsATurnOfItsOwn() {
+        // North for ~550 m, a left turn to the west for ~550 m, then a right turn north again.
+        var pts = (0...5).map { Coordinate(latitude: 40 + Double($0) * 0.001, longitude: -100) }
+        pts += (1...5).map { Coordinate(latitude: 40.005, longitude: -100 - Double($0) * 0.0013) }
+        pts += (1...5).map { Coordinate(latitude: 40.005 + Double($0) * 0.001, longitude: -100.0065) }
+        let len = Route(polyline: pts, steps: [], duration: 0)!.distance
+        // Apple's list knows only about the right turn onto the last leg.
+        let rightAt = Geo.distance(pts[0], pts[5]) + Geo.distance(pts[5], pts[10])
+        let route = Route(polyline: pts, steps: [
+            RouteStep(instruction: "Head north", maneuver: .straight, distance: rightAt, duration: 60),
+            RouteStep(instruction: "Turn right onto Elm St", maneuver: .turnRight, distance: len - rightAt, duration: 60),
+        ], duration: 120)!
+        XCTAssertEqual(route.steps.map(\.instruction), ["Head north", "Turn left", "Turn right onto Elm St"])
+        XCTAssertEqual(route.steps[1].maneuver, .turnLeft)
+        XCTAssertEqual(route.steps[1].startOffset, Geo.distance(pts[0], pts[5]), accuracy: 15)
+        XCTAssertEqual(route.steps[2].startOffset, rightAt, accuracy: 1)
+    }
+
     func testArrivalSideIsCheckedAgainstTheDestinationPoint() {
         let end = Coordinate(latitude: 40, longitude: -100)
         let eastOfEnd = Coordinate(latitude: 40, longitude: -100 + 0.0003)   // ~25 m east; heading north, that is the right side

@@ -217,6 +217,17 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(makeRoute().steps[1].instruction, "Turn right onto Elm St")
     }
 
+    func testArrivalSideIsCheckedAgainstTheDestinationPoint() {
+        let end = Coordinate(latitude: 40, longitude: -100)
+        let eastOfEnd = Coordinate(latitude: 40, longitude: -100 + 0.0003)   // ~25 m east; heading north, that is the right side
+        XCTAssertEqual(Route.correctedArrival("Your destination is on the left", routeEnd: end, travelBearing: 0, destination: eastOfEnd),
+                       "Your destination is on the right")
+        XCTAssertEqual(Route.correctedArrival("Your destination is on the right", routeEnd: end, travelBearing: 0, destination: eastOfEnd),
+                       "Your destination is on the right")
+        XCTAssertEqual(Route.correctedArrival("Your destination is on the left", routeEnd: end, travelBearing: 0, destination: end),
+                       "Your destination is on the left", "too close to tell, so leave it")
+    }
+
     func testOverpassRuntimeErrorIsAFailureNotAnEmptyCorridor() {
         let json = #"{"elements":[],"remark":"runtime error: Query timed out in \"query\" at line 1 after 31 seconds."}"#
         XCTAssertNil(OSMCorridor.parse(Data(json.utf8)))

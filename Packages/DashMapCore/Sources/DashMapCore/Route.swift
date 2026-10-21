@@ -121,6 +121,21 @@ extension Route {
         }
     }
 
+    /// "Your destination is on the left" is corrected from where the destination point really lies relative to the end of the
+    /// route (left or right of the direction of travel). Does nothing when the point is too close to tell.
+    public static func correctedArrival(_ instruction: String, routeEnd: Coordinate, travelBearing: Double, destination: Coordinate, minimum: Double = 8) -> String {
+        let north = (destination.latitude - routeEnd.latitude) * 111_320
+        let east = (destination.longitude - routeEnd.longitude) * 111_320 * cos(routeEnd.latitude * .pi / 180)
+        guard (north * north + east * east).squareRoot() >= minimum else { return instruction }
+        let b = travelBearing * .pi / 180
+        let cross = sin(b) * north - cos(b) * east   // negative: destination lies to the right of travel
+        let isRight = cross < 0
+        let lower = instruction.lowercased()
+        let mentionsRight = lower.contains("right"), mentionsLeft = lower.contains("left")
+        guard mentionsRight != mentionsLeft, mentionsRight != isRight else { return instruction }
+        return swapSide(in: instruction)
+    }
+
     /// "Turn right onto Elm St" becomes "Turn left onto Elm St" (first whole word only, keeping capitalization).
     static func swapSide(in text: String) -> String {
         guard let range = text.range(of: "\\b(left|right)\\b", options: [.regularExpression, .caseInsensitive]) else { return text }

@@ -24,10 +24,11 @@ struct SavedPlace: Codable, Identifiable, Hashable {
     }
 }
 
-/// Recent destinations plus Home and Work shortcuts, kept in UserDefaults.
+/// Recent destinations, saved places, and Home and Work shortcuts, kept in UserDefaults.
 @MainActor
 final class PlacesStore: ObservableObject {
     @Published private(set) var recents: [SavedPlace] = []
+    @Published private(set) var saved: [SavedPlace] = []
     @Published private(set) var home: SavedPlace?
     @Published private(set) var work: SavedPlace?
 
@@ -35,6 +36,7 @@ final class PlacesStore: ObservableObject {
 
     init() {
         recents = load([SavedPlace].self, "places.recents") ?? []
+        saved = load([SavedPlace].self, "places.saved") ?? []
         home = load(SavedPlace.self, "places.home")
         work = load(SavedPlace.self, "places.work")
     }
@@ -49,6 +51,19 @@ final class PlacesStore: ObservableObject {
     func remove(_ place: SavedPlace) {
         recents.removeAll { $0.id == place.id }
         save(recents, "places.recents")
+    }
+
+    func isSaved(_ place: SavedPlace) -> Bool { saved.contains { $0.id == place.id } }
+
+    func addSaved(_ place: SavedPlace) {
+        guard !isSaved(place) else { return }
+        saved.insert(place, at: 0)
+        save(saved, "places.saved")
+    }
+
+    func removeSaved(_ place: SavedPlace) {
+        saved.removeAll { $0.id == place.id }
+        save(saved, "places.saved")
     }
 
     func setHome(_ place: SavedPlace) { home = place; save(place, "places.home") }

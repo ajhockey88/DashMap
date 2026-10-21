@@ -35,7 +35,7 @@ public final class NavigationEngine {
     static let arrivalRadius = 25.0
     static let thenDistance = 300.0
     /// A turn stays the current instruction until the car is this far past it, so the next one doesn't appear mid-turn.
-    static let turnHold = 25.0
+    static let turnHold = 40.0
     /// Heading mismatch (in meters of equivalent offset) added when picking between candidate segments.
     static let headingPenalty = 30.0
 

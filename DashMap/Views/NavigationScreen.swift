@@ -23,35 +23,38 @@ private struct MapNavView: View {
     private var units: Units { Units(setting: unitsSetting) }
 
     var body: some View {
-        ZStack {
-            DrivingMap(
-                style: .standard,
-                route: session.route,
-                state: session.state,
-                car: session.carPosition,
-                heading: session.carHeading,
-                speed: session.speed,
-                lanePaint: session.activeLanePaint,
-                following: $following
-            )
-            .ignoresSafeArea()
+        // The map stops at the bar, so the car (low on the map) is never hidden behind it.
+        VStack(spacing: 0) {
+            ZStack {
+                DrivingMap(
+                    style: .standard,
+                    route: session.route,
+                    state: session.state,
+                    car: session.carPosition,
+                    heading: session.carHeading,
+                    speed: session.speed,
+                    lanePaint: session.activeLanePaint,
+                    following: $following
+                )
+                .ignoresSafeArea(edges: [.top, .horizontal])
 
-            VStack(spacing: 0) {
-                banner
-                Spacer()
-                HStack(alignment: .bottom, spacing: 10) {
-                    speedBadge
-                    if let kph = session.roadInfo?.speedLimitKph {
-                        SpeedLimitSign(kph: kph, units: units, size: 56)
+                VStack(spacing: 0) {
+                    banner
+                    Spacer()
+                    HStack(alignment: .bottom, spacing: 10) {
+                        speedBadge
+                        if let kph = session.roadInfo?.speedLimitKph {
+                            SpeedLimitSign(kph: kph, units: units, size: 56)
+                        }
+                        if let road = session.roadInfo { RoadChip(info: road) }
+                        Spacer(minLength: 0)
+                        IconButton(systemName: "magnifyingglass", label: "Find places along your route") { showStops = true }
                     }
-                    if let road = session.roadInfo { RoadChip(info: road) }
-                    Spacer(minLength: 0)
-                    IconButton(systemName: "magnifyingglass", label: "Find places along your route") { showStops = true }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
-                bottomBar
             }
+            bottomBar
         }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
@@ -159,7 +162,12 @@ private struct MapNavView: View {
         .padding(.horizontal, 16)
         .padding(.top, 14)
         .padding(.bottom, 8)
-        .background(Theme.surface.opacity(0.96), in: UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
+        .background {
+            // Runs under the home indicator so there is no gap at the bottom of the screen.
+            UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
+                .fill(Theme.surface.opacity(0.96))
+                .ignoresSafeArea(edges: .bottom)
+        }
     }
 
     private func arrival(_ secondsFromNow: Double) -> String {

@@ -51,6 +51,8 @@ public struct Route: Equatable, Sendable {
     public let segmentBearings: [Double]
     public let steps: [RouteStep]
     public let duration: Double
+    /// The steps exactly as the routing service gave them (offset in meters is not known there), for the on-screen route details.
+    public var appleSteps: [String] = []
 
     public var distance: Double { cumulative[cumulative.count - 1] }
 
@@ -93,6 +95,34 @@ public struct Route: Equatable, Sendable {
 }
 
 extension Route {
+    /// Corners of the route line (heading change of at least `minimumAngle` degrees, positive = right), for the route details.
+    public func geometryCorners(minimumAngle: Double = 40, window: Double = 25) -> [(offset: Double, angle: Double)] {
+        func angle(at d: Double) -> Double? {
+            let before = position(atOffset: max(0, d - window)).coordinate
+            let here = position(atOffset: d).coordinate
+            let after = position(atOffset: min(distance, d + window)).coordinate
+            guard Geo.distance(before, here) > 5, Geo.distance(here, after) > 5 else { return nil }
+            return Geo.turnAngle(before: Geo.bearing(from: before, to: here), after: Geo.bearing(from: here, to: after))
+        }
+        var corners: [(offset: Double, angle: Double)] = []
+        var d = 5.0
+        while d < distance - 5 {
+            if let a = angle(at: d), abs(a) >= minimumAngle {
+                var best = (offset: d, angle: a)
+                var e = d
+                while e < d + 40, e < distance - 5 {
+                    if let b = angle(at: e), abs(b) > abs(best.angle) { best = (e, b) }
+                    e += 5
+                }
+                corners.append(best)
+                d = best.offset + 40
+            } else {
+                d += 5
+            }
+        }
+        return corners
+    }
+
     /// Makes each turn agree with the line the car actually follows. If a step says left but the route geometry at that
     /// point clearly turns right (or the reverse), the geometry wins: the arrow, the spoken words and the road all match.
     static func alignTurns(_ steps: inout [RouteStep], polyline: [Coordinate], cumulative: [Double], window: Double = 30, minimumAngle: Double = 40) {

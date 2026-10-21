@@ -13,7 +13,7 @@ enum MapKitRouter {
         request.requestsAlternateRoutes = true
 
         let response = try await MKDirections(request: request).calculate()
-        let routes = response.routes.compactMap(convert)
+        let routes = response.routes.compactMap { convert($0, destination: destination.placemark.coordinate) }
         guard !routes.isEmpty else { throw RouterError.noRoute }
         return routes
     }
@@ -23,7 +23,7 @@ enum MapKitRouter {
         var errorDescription: String? { "No driving route found." }
     }
 
-    static func convert(_ mk: MKRoute) -> Route? {
+    static func convert(_ mk: MKRoute, destination: CLLocationCoordinate2D? = nil) -> Route? {
         let polyline = coordinates(of: mk.polyline)
         var steps: [RouteStep] = []
         var previousHeading: Double?
@@ -55,6 +55,15 @@ enum MapKitRouter {
         let total = steps.reduce(0) { $0 + $1.distance }
         for i in steps.indices where total > 0 {
             steps[i].duration = mk.expectedTravelTime * steps[i].distance / total
+        }
+        // Apple's "destination is on the left/right" can be on the wrong side; check it against where the destination really is.
+        if let destination, polyline.count >= 2, let last = steps.indices.last, steps[last].maneuver == .arrive {
+            let end = polyline[polyline.count - 1]
+            steps[last].instruction = Route.correctedArrival(
+                steps[last].instruction, routeEnd: end,
+                travelBearing: Geo.bearing(from: polyline[polyline.count - 2], to: end),
+                destination: Coordinate(latitude: destination.latitude, longitude: destination.longitude)
+            )
         }
         return Route(polyline: polyline, steps: steps, duration: mk.expectedTravelTime)
     }

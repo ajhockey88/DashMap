@@ -12,16 +12,19 @@ final class CorridorStore {
     private var generation = 0
     /// Why the last download failed, if it did (shown in the simulated-drive diagnostics).
     private(set) var lastFailure: String?
+    private var startedAt: Date?
 
     var summary: String {
         let km = Int(loadedUpTo / 1000)
         let laneRoads = corridor.ways.filter { $0.tags.keys.contains { $0.hasPrefix("turn:lanes") } }.count
         var text = "Map data: \(km) km, \(corridor.ways.count) roads, \(laneRoads) with lane tags."
+        if task != nil, let startedAt { text += " Downloading for \(Int(Date().timeIntervalSince(startedAt))) s." }
         if let lastFailure { text += " Last download failed: \(lastFailure)." }
         return text
     }
 
     static let chunk = 5_000.0        // meters of route per request (small enough for busy cities not to time out)
+    static let firstChunk = 2_000.0   // the first request is smaller so it finishes fast
     static let lookahead = 8_000.0    // stay at least this far ahead of the car
 
     func reset() {
@@ -45,8 +48,10 @@ final class CorridorStore {
         guard loadedUpTo < target else { return }
 
         let from = loadedUpTo
-        let to = min(route.distance, from + Self.chunk)
+        // A small first piece so the first turns get lanes quickly; later pieces are larger.
+        let to = min(route.distance, from + (from == 0 ? Self.firstChunk : Self.chunk))
         let gen = generation
+        startedAt = Date()
         task = Task {
             let query = OSMCorridor.query(for: route, from: from, to: to)
             let result = await Overpass.runDetailed(query, timeout: 30)

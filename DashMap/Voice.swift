@@ -21,7 +21,8 @@ final class Voice {
 
     private var chosenVoice: AVSpeechSynthesisVoice? {
         if let id = UserDefaults.standard.string(forKey: Voice.voiceKey), let v = AVSpeechSynthesisVoice(identifier: id) { return v }
-        return AVSpeechSynthesisVoice(language: Locale.current.identifier.replacingOccurrences(of: "_", with: "-"))
+        // No choice made: use the most natural installed voice (Premium, then Enhanced) over the robotic default.
+        return Voice.availableVoices().first ?? AVSpeechSynthesisVoice(language: Locale.current.identifier.replacingOccurrences(of: "_", with: "-"))
     }
 
     private var chosenRate: Float {

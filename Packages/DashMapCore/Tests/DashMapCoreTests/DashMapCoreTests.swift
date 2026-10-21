@@ -228,14 +228,17 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(makeRoute().steps[1].instruction, "Turn right onto Elm St")
     }
 
-    func testFirstStepTurnIsReplacedByAHeading() {
-        // Heads due south; Apple Maps' "Turn right onto N Glebe Rd" as step one assumes a heading the car may not have.
+    func testFirstStepTurnBecomesTheNextManeuverNotTheCurrentRoad() {
+        // Straight south; Apple's first real step is a turn at the very start. It must be announced, not assumed done.
         let pts = (0...10).map { Coordinate(latitude: 40 - Double($0) * 0.001, longitude: -100) }
         let route = Route(polyline: pts, steps: [
             RouteStep(instruction: "Turn right onto N Glebe Rd", maneuver: .turnRight, distance: 1_100, duration: 60),
         ], duration: 60)!
-        XCTAssertEqual(route.steps[0].instruction, "Head south")
-        XCTAssertEqual(route.steps[0].maneuver, .straight)
+        XCTAssertEqual(route.steps.map(\.instruction), ["Head south", "Turn right onto N Glebe Rd"])
+        XCTAssertEqual(route.steps[1].startOffset, 10, accuracy: 1)
+        let engine = NavigationEngine(route: route)
+        let s = engine.update(location: pts[0])
+        XCTAssertEqual(s.nextInstruction, "Turn right onto N Glebe Rd")
     }
 
     func testACornerMissingFromTheStepsGetsATurnOfItsOwn() {
@@ -278,7 +281,7 @@ final class DashMapCoreTests: XCTestCase {
         let route = Route(polyline: pts, steps: [
             RouteStep(instruction: "Turn right onto N Glebe Rd", maneuver: .turnRight, distance: len, duration: 60),
         ], duration: 60)!
-        XCTAssertEqual(route.steps.map(\.instruction), ["Head north", "Turn left"])
+        XCTAssertEqual(route.steps.map(\.instruction), ["Head north", "Turn left onto N Glebe Rd"])
         XCTAssertEqual(route.steps[1].startOffset, 44.5, accuracy: 12)
     }
 

@@ -82,9 +82,9 @@ public struct Route: Equatable, Sendable {
             steps[i].duration *= tScale
         }
 
+        Self.insertLeadingStep(&steps, polyline: polyline, cumulative: cum)
         Self.alignTurns(&steps, polyline: polyline, cumulative: cum)
         Self.insertMissedTurns(&steps, polyline: polyline, cumulative: cum)
-        Self.neutralizeStart(&steps, polyline: polyline)
 
         self.polyline = polyline
         self.cumulative = cum
@@ -218,17 +218,56 @@ extension Route {
         }
     }
 
-    /// Apple Maps plans from a bare coordinate, so a "turn left/right" as the very first step assumes a heading the car may not have.
-    /// Say which way the route heads off instead ("Head south"): the road it names belongs to a turn that may be further on.
-    static func neutralizeStart(_ steps: inout [RouteStep], polyline: [Coordinate]) {
-        let turns: Set<Maneuver> = [.turnSlightLeft, .turnLeft, .turnSharpLeft, .turnSlightRight, .turnRight, .turnSharpRight]
-        guard let first = steps.first, turns.contains(first.maneuver), polyline.count >= 2 else { return }
-        let far = polyline.dropFirst().first { Geo.distance(polyline[0], $0) >= 15 } ?? polyline[polyline.count - 1]
-        let bearing = (Geo.bearing(from: polyline[0], to: far).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+    /// MapKit steps say what to do at their *start*, and the engine treats the first step as the road the car is already on.
+    /// When the very first step is a turn (Apple's empty "depart" step is dropped), that turn would be taken for granted and every
+    /// later instruction would come one turn early. A short "Head north" step goes in front, ending where the route line first
+    /// turns, so the first turn is announced as the next maneuver.
+    static func insertLeadingStep(_ steps: inout [RouteStep], polyline: [Coordinate], cumulative: [Double]) {
+        let turns: Set<Maneuver> = [.turnSlightLeft, .turnLeft, .turnSharpLeft, .turnSlightRight, .turnRight, .turnSharpRight, .uturnLeft, .uturnRight]
+        guard let first = steps.first, turns.contains(first.maneuver), polyline.count >= 2, let length = cumulative.last else { return }
+        func point(at offset: Double) -> Coordinate {
+            let d = min(max(offset, 0), length)
+            var lo = 0, hi = cumulative.count - 2
+            while lo < hi {
+                let mid = (lo + hi + 1) / 2
+                if cumulative[mid] <= d { lo = mid } else { hi = mid - 1 }
+            }
+            let seg = cumulative[lo + 1] - cumulative[lo]
+            let t = seg > 0 ? (d - cumulative[lo]) / seg : 0
+            let a = polyline[lo], b = polyline[lo + 1]
+            return Coordinate(latitude: a.latitude + (b.latitude - a.latitude) * t, longitude: a.longitude + (b.longitude - a.longitude) * t)
+        }
+        func angle(at offset: Double, window: Double = 25) -> Double? {
+            let before = point(at: offset - window), here = point(at: offset), after = point(at: offset + window)
+            guard Geo.distance(before, here) > 5, Geo.distance(here, after) > 5 else { return nil }
+            return Geo.turnAngle(before: Geo.bearing(from: before, to: here), after: Geo.bearing(from: here, to: after))
+        }
+        let limit = min(200, first.endOffset)
+        var boundary = min(10, first.endOffset / 2)
+        var d = 5.0
+        while d < limit {
+            if let a = angle(at: d), abs(a) >= 30 {
+                var best = (offset: d, angle: a)
+                var e = d
+                while e < d + 25, e < limit {
+                    if let b = angle(at: e), abs(b) > abs(best.angle) { best = (e, b) }
+                    e += 5
+                }
+                boundary = best.offset
+                break
+            }
+            d += 5
+        }
+        let far = point(at: min(boundary, 30))
+        let bearing = Geo.bearing(from: polyline[0], to: far)
         let names = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
         let direction = names[Int((bearing + 22.5) / 45) % 8]
-        steps[0].instruction = "Head \(direction)"
-        steps[0].maneuver = .straight
+        var lead = RouteStep(instruction: "Head \(direction)", maneuver: .straight, distance: boundary, duration: 0)
+        lead.startOffset = 0
+        lead.endOffset = boundary
+        steps[0].startOffset = boundary
+        steps[0].distance = max(0, steps[0].distance - boundary)
+        steps.insert(lead, at: 0)
     }
 
     /// "Your destination is on the left" is corrected from where the destination point really lies relative to the end of the

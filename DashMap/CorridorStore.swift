@@ -11,8 +11,8 @@ final class CorridorStore {
     private var retryAfter = Date.distantPast
     private var generation = 0
 
-    static let chunk = 15_000.0       // meters of route per request
-    static let lookahead = 10_000.0   // stay at least this far ahead of the car
+    static let chunk = 5_000.0        // meters of route per request (small enough for busy cities not to time out)
+    static let lookahead = 8_000.0    // stay at least this far ahead of the car
 
     func reset() {
         generation += 1

@@ -83,6 +83,8 @@ public enum OSMCorridor {
 
     public static func parse(_ data: Data) -> Corridor? {
         guard let response = try? JSONDecoder().decode(Response.self, from: data) else { return nil }
+        // An overloaded Overpass server answers 200 with a "runtime error" remark and no (or partial) roads; that is a failure.
+        if let remark = response.remark, remark.contains("runtime error") || remark.contains("timed out") { return nil }
         var ways: [CorridorWay] = []
         var nodes: [CorridorNode] = []
         for element in response.elements {
@@ -96,7 +98,7 @@ public enum OSMCorridor {
         return Corridor(ways: ways, nodes: nodes)
     }
 
-    private struct Response: Decodable { var elements: [Element] }
+    private struct Response: Decodable { var elements: [Element]; var remark: String? }
     private struct Element: Decodable {
         var type: String
         var id: Int64?

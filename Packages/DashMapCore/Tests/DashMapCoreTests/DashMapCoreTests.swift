@@ -31,6 +31,17 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(s.distanceToManeuver, 0.0025 * 111_195, accuracy: 15)
     }
 
+    func testTurnStaysCurrentUntilTheCarIsPastIt() {
+        let route = makeRoute()
+        let turnAt = route.steps[1].startOffset
+        let engine = NavigationEngine(route: route)
+        let atTurn = engine.update(location: route.position(atOffset: turnAt + 5).coordinate)
+        XCTAssertEqual(atTurn.nextManeuver, .turnRight, "still turning: the next instruction must not appear yet")
+        XCTAssertEqual(atTurn.distanceToManeuver, 0, accuracy: 0.001)
+        let past = engine.update(location: route.position(atOffset: turnAt + 60).coordinate)
+        XCTAssertEqual(past.stepIndex, 1)
+    }
+
     func testOffRouteNeedsRepeatedStrikes() {
         // About 60 m east of the road: past the 35 m threshold but not 3x it, so 3 consecutive fixes are needed.
         let near = NavigationEngine(route: makeRoute())

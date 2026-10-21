@@ -34,6 +34,8 @@ public final class NavigationEngine {
     static let searchAhead = 1_500.0
     static let arrivalRadius = 25.0
     static let thenDistance = 300.0
+    /// A turn stays the current instruction until the car is this far past it, so the next one doesn't appear mid-turn.
+    static let turnHold = 25.0
     /// Heading mismatch (in meters of equivalent offset) added when picking between candidate segments.
     static let headingPenalty = 30.0
 
@@ -107,7 +109,7 @@ public final class NavigationEngine {
         )
 
         let steps = route.steps
-        let stepIndex = steps.lastIndex(where: { $0.startOffset <= progress }) ?? 0
+        let stepIndex = steps.lastIndex(where: { $0.startOffset + Self.turnHold <= progress }) ?? 0
         let step = steps[stepIndex]
         let upcoming = stepIndex + 1 < steps.count ? steps[stepIndex + 1] : nil
         let following = stepIndex + 2 < steps.count ? steps[stepIndex + 2] : nil

@@ -116,7 +116,11 @@ extension Route {
             let angle = Geo.turnAngle(before: Geo.bearing(from: before, to: here), after: Geo.bearing(from: here, to: after))
             guard abs(angle) >= minimumAngle else { continue }
             let geometryIsRight = angle > 0
-            let statedIsRight = steps[i].maneuver.rawValue.contains("RIGHT")
+            // The words are what gets read out, so judge the side by them; fall back to the maneuver when they name no single side.
+            let words = steps[i].instruction.lowercased()
+            let sayRight = words.range(of: "\\bright\\b", options: .regularExpression) != nil
+            let sayLeft = words.range(of: "\\bleft\\b", options: .regularExpression) != nil
+            let statedIsRight = sayRight != sayLeft ? sayRight : steps[i].maneuver.rawValue.contains("RIGHT")
             guard geometryIsRight != statedIsRight else { continue }
             steps[i].maneuver = Maneuver.classify(turnAngle: angle)
             steps[i].instruction = swapSide(in: steps[i].instruction)
@@ -146,10 +150,10 @@ extension Route {
             return Geo.turnAngle(before: Geo.bearing(from: before, to: here), after: Geo.bearing(from: here, to: after))
         }
         var found: [(offset: Double, angle: Double)] = []
-        var d = window
+        var d = 5.0   // a first turn out of a driveway can be only a few meters in
         while d < length - window {
             if let a = angle(at: d), abs(a) >= minimumAngle, abs(a) < 170,
-               !steps.contains(where: { abs($0.startOffset - d) < tolerance }) {
+               !steps.contains(where: { $0.startOffset > 1 && abs($0.startOffset - d) < tolerance }) {
                 // Take the sharpest point of this corner.
                 var best = (offset: d, angle: a)
                 var e = d
@@ -185,7 +189,7 @@ extension Route {
     }
 
     /// Apple Maps plans from a bare coordinate, so a "turn left/right" as the very first step assumes a heading the car may not have.
-    /// Say which way the route heads off instead ("Head south on N Glebe Rd") and leave the side to the road itself.
+    /// Say which way the route heads off instead ("Head south"): the road it names belongs to a turn that may be further on.
     static func neutralizeStart(_ steps: inout [RouteStep], polyline: [Coordinate]) {
         let turns: Set<Maneuver> = [.turnSlightLeft, .turnLeft, .turnSharpLeft, .turnSlightRight, .turnRight, .turnSharpRight]
         guard let first = steps.first, turns.contains(first.maneuver), polyline.count >= 2 else { return }
@@ -193,9 +197,7 @@ extension Route {
         let bearing = (Geo.bearing(from: polyline[0], to: far).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
         let names = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
         let direction = names[Int((bearing + 22.5) / 45) % 8]
-        var text = "Head \(direction)"
-        if let range = first.instruction.range(of: " onto ") { text += " on " + first.instruction[range.upperBound...] }
-        steps[0].instruction = text
+        steps[0].instruction = "Head \(direction)"
         steps[0].maneuver = .straight
     }
 

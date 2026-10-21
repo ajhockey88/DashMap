@@ -65,20 +65,31 @@ public struct Corridor: Sendable {
 public enum OSMCorridor {
     static let roadFilter = "[highway~\"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|living_street|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$\"]"
 
-    /// Overpass QL for roads and exit junctions within 25 m of the stretch of `route` between two offsets (meters).
-    public static func query(for route: Route, from start: Double, to end: Double, spacing: Double = 100) -> String {
-        var coords: [String] = []
+    /// Overpass QL for roads and exit junctions along the stretch of `route` between two offsets (meters).
+    /// Uses a chain of small bounding boxes: that is served from the spatial index and answers in a second or two,
+    /// where an `around` search over a long polyline makes the public servers time out in dense cities.
+    public static func query(for route: Route, from start: Double, to end: Double, spacing: Double = 100, margin: Double = 30, samplesPerBox: Int = 3) -> String {
+        var points: [Coordinate] = []
         var d = max(0, start)
         let limit = min(end, route.distance)
         while d < limit {
-            let c = route.position(atOffset: d).coordinate
-            coords.append(String(format: "%.5f,%.5f", c.latitude, c.longitude))
+            points.append(route.position(atOffset: d).coordinate)
             d += spacing
         }
-        let last = route.position(atOffset: limit).coordinate
-        coords.append(String(format: "%.5f,%.5f", last.latitude, last.longitude))
-        let around = coords.joined(separator: ",")
-        return "[out:json][timeout:30];(way(around:25,\(around))\(roadFilter);node(around:25,\(around))[highway=motorway_junction];);out tags geom;"
+        points.append(route.position(atOffset: limit).coordinate)
+
+        var statements: [String] = []
+        var i = 0
+        while i < points.count - 1 || (i == 0 && points.count == 1) {
+            let window = points[i..<min(points.count, i + samplesPerBox + 1)]
+            let lats = window.map(\.latitude), lons = window.map(\.longitude)
+            let dLat = margin / 111_320
+            let dLon = dLat / max(0.1, cos((lats.reduce(0, +) / Double(lats.count)) * .pi / 180))
+            let box = String(format: "%.5f,%.5f,%.5f,%.5f", lats.min()! - dLat, lons.min()! - dLon, lats.max()! + dLat, lons.max()! + dLon)
+            statements.append("way\(roadFilter)(\(box));node[highway=motorway_junction](\(box));")
+            i += samplesPerBox
+        }
+        return "[out:json][timeout:25];(\(statements.joined()));out tags geom;"
     }
 
     public static func parse(_ data: Data) -> Corridor? {

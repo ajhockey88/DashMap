@@ -195,8 +195,9 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(corridor.ways.count, 1, "the same way must not be added twice")
 
         let q = OSMCorridor.query(for: makeRoute(), from: 0, to: 500, spacing: 100)
-        XCTAssertTrue(q.contains("way(around:25,40.00000,-100.00000"))
+        XCTAssertTrue(q.contains("way[highway~"), "roads are fetched by bounding box")
         XCTAssertTrue(q.contains("motorway_junction"))
+        XCTAssertFalse(q.contains("around"), "an around search over a long polyline times out on public servers")
     }
 
     func testOverpassRuntimeErrorIsAFailureNotAnEmptyCorridor() {

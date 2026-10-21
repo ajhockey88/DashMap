@@ -234,7 +234,7 @@ final class DashMapCoreTests: XCTestCase {
         let route = Route(polyline: pts, steps: [
             RouteStep(instruction: "Turn right onto N Glebe Rd", maneuver: .turnRight, distance: 1_100, duration: 60),
         ], duration: 60)!
-        XCTAssertEqual(route.steps[0].instruction, "Head south on N Glebe Rd")
+        XCTAssertEqual(route.steps[0].instruction, "Head south")
         XCTAssertEqual(route.steps[0].maneuver, .straight)
     }
 
@@ -254,6 +254,32 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertEqual(route.steps[1].maneuver, .turnLeft)
         XCTAssertEqual(route.steps[1].startOffset, Geo.distance(pts[0], pts[5]), accuracy: 15)
         XCTAssertEqual(route.steps[2].startOffset, rightAt, accuracy: 1)
+    }
+
+    func testTheWrittenSideIsCheckedEvenWhenTheManeuverWasGuessed() {
+        // "Take a slight left turn" is not parsed into a maneuver, so the geometry guess (right) matched the geometry
+        // while the words still said left.
+        var pts = (0...10).map { Coordinate(latitude: 40 + Double($0) * 0.001, longitude: -100) }
+        pts += (1...10).map { Coordinate(latitude: 40.010, longitude: -100 + Double($0) * 0.001 * 1.3) }
+        let first = Geo.distance(pts[0], pts[10])
+        let len = Route(polyline: pts, steps: [], duration: 0)!.distance
+        let route = Route(polyline: pts, steps: [
+            RouteStep(instruction: "Head north", maneuver: .straight, distance: first, duration: 60),
+            RouteStep(instruction: "Take a slight left turn onto Old Dominion Dr", maneuver: .turnRight, distance: len - first, duration: 60),
+        ], duration: 120)!
+        XCTAssertEqual(route.steps[1].instruction, "Take a slight right turn onto Old Dominion Dr")
+    }
+
+    func testAFirstTurnOutOfTheStartIsNotLost() {
+        // 44 m north, then a left turn west. Apple's only step claims "Turn right onto N Glebe Rd" at the very start.
+        var pts = [Coordinate(latitude: 40, longitude: -100), Coordinate(latitude: 40.0004, longitude: -100)]
+        pts += (1...5).map { Coordinate(latitude: 40.0004, longitude: -100 - Double($0) * 0.0013) }
+        let len = Route(polyline: pts, steps: [], duration: 0)!.distance
+        let route = Route(polyline: pts, steps: [
+            RouteStep(instruction: "Turn right onto N Glebe Rd", maneuver: .turnRight, distance: len, duration: 60),
+        ], duration: 60)!
+        XCTAssertEqual(route.steps.map(\.instruction), ["Head north", "Turn left"])
+        XCTAssertEqual(route.steps[1].startOffset, 44.5, accuracy: 12)
     }
 
     func testArrivalSideIsCheckedAgainstTheDestinationPoint() {

@@ -7,7 +7,8 @@ struct SavedPlace: Codable, Identifiable, Hashable {
     var latitude: Double
     var longitude: Double
 
-    var id: String { "\(name)|\(latitude)|\(longitude)" }
+    /// Identified by location only, so renaming a place keeps it matched with its recent entry.
+    var id: String { "\(latitude)|\(longitude)" }
 
     init(item: MKMapItem) {
         let p = item.placemark
@@ -63,6 +64,13 @@ final class PlacesStore: ObservableObject {
 
     func removeSaved(_ place: SavedPlace) {
         saved.removeAll { $0.id == place.id }
+        save(saved, "places.saved")
+    }
+
+    func renameSaved(_ place: SavedPlace, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, let i = saved.firstIndex(where: { $0.id == place.id }) else { return }
+        saved[i].name = trimmed
         save(saved, "places.saved")
     }
 

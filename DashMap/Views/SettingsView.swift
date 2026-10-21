@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 struct SettingsView: View {
     @EnvironmentObject private var session: NavigationSession
@@ -7,6 +8,18 @@ struct SettingsView: View {
     @AppStorage("nav.hud") private var startInHUD = false
     @AppStorage("hud.style") private var hudStyle = "arrows"
     @AppStorage("hud.mirrored") private var mirrored = true
+    @AppStorage(Voice.voiceKey) private var voiceID = ""
+    @AppStorage(Voice.rateKey) private var voiceRate = Voice.defaultRate
+    @State private var previewVoice = Voice()
+    private let voices = Voice.availableVoices()
+
+    private func label(for v: AVSpeechSynthesisVoice) -> String {
+        switch v.quality {
+        case .premium: return "\(v.name) (Premium)"
+        case .enhanced: return "\(v.name) (Enhanced)"
+        default: return v.name
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -21,6 +34,19 @@ struct SettingsView: View {
                 }
                 Section("Guidance") {
                     Toggle("Voice guidance", isOn: $session.voiceEnabled)
+                    Picker("Voice", selection: $voiceID) {
+                        Text("Default").tag("")
+                        ForEach(voices, id: \.identifier) { v in
+                            Text(label(for: v)).tag(v.identifier)
+                        }
+                    }
+                    HStack {
+                        Image(systemName: "tortoise.fill").foregroundStyle(Theme.secondary)
+                        Slider(value: $voiceRate, in: Double(AVSpeechUtteranceMinimumSpeechRate)...Double(AVSpeechUtteranceMaximumSpeechRate))
+                            .accessibilityLabel("Speaking speed")
+                        Image(systemName: "hare.fill").foregroundStyle(Theme.secondary)
+                    }
+                    Button("Preview voice", systemImage: "play.circle.fill") { previewVoice.preview() }
                 }
                 Section {
                     Picker("Start with", selection: $startInHUD) {

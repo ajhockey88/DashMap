@@ -8,6 +8,8 @@ struct RootView: View {
     @StateObject private var places = PlacesStore()
     @State private var query = ""
     @State private var showSettings = false
+    @State private var renaming: SavedPlace?
+    @State private var newName = ""
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -24,6 +26,14 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView().environmentObject(session)
+        }
+        .alert("Rename saved place", isPresented: Binding(
+            get: { renaming != nil },
+            set: { if !$0 { renaming = nil } }
+        )) {
+            TextField("Name", text: $newName)
+            Button("Save") { if let place = renaming { places.renameSaved(place, to: newName) } }
+            Button("Cancel", role: .cancel) {}
         }
         .alert("Navigation", isPresented: Binding(
             get: { session.errorMessage != nil },
@@ -128,6 +138,7 @@ struct RootView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
+                        Button("Rename", systemImage: "pencil") { newName = place.name; renaming = place }
                         Button("Set as Home", systemImage: "house") { places.setHome(place) }
                         Button("Set as Work", systemImage: "briefcase") { places.setWork(place) }
                         Button("Remove from Saved", systemImage: "star.slash", role: .destructive) { places.removeSaved(place) }

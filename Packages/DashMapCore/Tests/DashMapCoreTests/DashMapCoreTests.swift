@@ -199,6 +199,12 @@ final class DashMapCoreTests: XCTestCase {
         XCTAssertTrue(q.contains("motorway_junction"))
     }
 
+    func testOverpassRuntimeErrorIsAFailureNotAnEmptyCorridor() {
+        let json = #"{"elements":[],"remark":"runtime error: Query timed out in \"query\" at line 1 after 31 seconds."}"#
+        XCTAssertNil(OSMCorridor.parse(Data(json.utf8)))
+        XCTAssertNotNil(OSMCorridor.parse(Data(#"{"elements":[]}"#.utf8)))
+    }
+
     func testExitInfoFromJunctionAndRamp() {
         let json = """
         {"elements":[

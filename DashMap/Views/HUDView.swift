@@ -161,26 +161,31 @@ struct HUDView: View {
     }
 
     private var controls: some View {
-        HStack {
+        HStack(spacing: 8) {
             Button { mirrored.toggle() } label: {
-                Label(mirrored ? "Mirrored" : "Normal", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
             }
+            .accessibilityLabel(mirrored ? "Mirrored, tap for normal" : "Normal, tap to mirror")
             Button { style = style == "map" ? "arrows" : "map" } label: {
-                Label(style == "map" ? "Map" : "Arrows", systemImage: style == "map" ? "map" : "arrow.up")
+                Image(systemName: style == "map" ? "map" : "arrow.up")
             }
+            .accessibilityLabel(style == "map" ? "Map style, tap for arrows" : "Arrows style, tap for map")
             Button { unitsSetting = units.metric ? "imperial" : "metric" } label: { Text(units.metric ? "km" : "mi") }
             Button { session.voiceEnabled.toggle() } label: {
                 Image(systemName: session.voiceEnabled ? "speaker.wave.2" : "speaker.slash")
             }
-            Spacer()
+            .accessibilityLabel("Voice guidance")
+            Spacer(minLength: 0)
             Button { hud = false } label: { Text("Nav") }
             Button { showEnd = true } label: { Image(systemName: "xmark.circle.fill") }
                 .accessibilityLabel("End navigation")
         }
+        .lineLimit(1)
         .buttonStyle(.bordered)
-        .controlSize(.large)
+        .controlSize(.regular)
         .tint(.gray)
-        .padding()
+        .padding(.horizontal, 12)
+        .padding(.vertical)
         .confirmationDialog("End navigation?", isPresented: $showEnd, titleVisibility: .visible) {
             Button("End navigation", role: .destructive) { session.stopNavigation() }
             Button("Keep going", role: .cancel) {}

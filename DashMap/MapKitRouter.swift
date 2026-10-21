@@ -4,16 +4,20 @@ import DashMapCore
 /// Turns an Apple Maps (MKDirections) route into a DashMapCore `Route`.
 /// MapKit steps carry no maneuver type, so it is inferred from the heading change between steps.
 enum MapKitRouter {
-    /// Returns the primary route first, followed by any alternatives Apple Maps offers.
+    /// Returns the quickest route (by Apple's traffic-aware travel time) first, followed by any alternatives Apple Maps offers.
     static func routes(from origin: Coordinate, to destination: MKMapItem) async throws -> [Route] {
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: origin.latitude, longitude: origin.longitude)))
         request.destination = destination
         request.transportType = .automobile
         request.requestsAlternateRoutes = true
+        request.departureDate = Date()   // ask for the time with today's traffic, not a typical-day estimate
 
         let response = try await MKDirections(request: request).calculate()
-        let routes = response.routes.compactMap { convert($0, destination: destination.placemark.coordinate) }
+        // Apple lists its preferred route first, which is not always the quickest with traffic; put the shortest time first.
+        let routes = response.routes
+            .sorted { $0.expectedTravelTime < $1.expectedTravelTime }
+            .compactMap { convert($0, destination: destination.placemark.coordinate) }
         guard !routes.isEmpty else { throw RouterError.noRoute }
         return routes
     }

@@ -32,10 +32,10 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
-                Section("Guidance") {
+                Section {
                     Toggle("Voice guidance", isOn: $session.voiceEnabled)
                     Picker("Voice", selection: $voiceID) {
-                        Text("Default").tag("")
+                        Text("Best available").tag("")
                         ForEach(voices, id: \.identifier) { v in
                             Text(label(for: v)).tag(v.identifier)
                         }
@@ -47,6 +47,10 @@ struct SettingsView: View {
                         Image(systemName: "hare.fill").foregroundStyle(Theme.secondary)
                     }
                     Button("Preview voice", systemImage: "play.circle.fill") { previewVoice.preview() }
+                } header: {
+                    Text("Guidance")
+                } footer: {
+                    Text("For a more natural voice, download an Enhanced or Premium one in the iPhone Settings app under Accessibility, Spoken Content, Voices. It then shows up in this list.")
                 }
                 Section {
                     Picker("Start with", selection: $startInHUD) {
